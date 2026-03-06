@@ -292,18 +292,24 @@ const options = {
       "/api/products/import": {
         post: {
           tags: ["Products"],
-          summary: "Importar productos masivamente desde CSV (compatible con Excel)",
+          summary: "Importar productos masivamente desde archivo Excel (.xlsx)",
           description:
-            "Sube contenido CSV exportado desde Excel con encabezados: name|nombre, reference|referencia, description|descripcion (opcional), active|activo (opcional)",
+            "Sube un archivo .xlsx con encabezados: reference, name, description (opcional), active (opcional)",
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
             content: {
-              "text/csv": {
+              "multipart/form-data": {
                 schema: {
-                  type: "string",
-                  example:
-                    "name,reference,description,active\nLavamanos Delta,LVM-001,Lavamanos cerámico,true\nGrifería Nova,GRF-001,Monomando,1",
+                  type: "object",
+                  required: ["file"],
+                  properties: {
+                    file: {
+                      type: "string",
+                      format: "binary",
+                      description: "Archivo Excel .xlsx",
+                    },
+                  },
                 },
               },
             },

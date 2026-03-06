@@ -1,3 +1,22 @@
+
+const mapUploadError = (error) => {
+  if (error?.name !== "MulterError") {
+    return null;
+  }
+
+  if (error.code === "LIMIT_FILE_SIZE") {
+    return {
+      statusCode: 400,
+      message: "File is too large. Maximum allowed size is 5MB.",
+    };
+  }
+
+  return {
+    statusCode: 400,
+    message: error.message || "Invalid uploaded file",
+  };
+};
+
 const mapPrismaError = (error) => {
   // P2021: table does not exist
   if (error?.code === "P2021") {
@@ -38,10 +57,13 @@ export const errorHandler = (error, req, res, next) => {
   }
 
   const prismaMapped = mapPrismaError(error);
+  const uploadMapped = mapUploadError(error);
 
-  const statusCode = prismaMapped?.statusCode || error.statusCode || 500;
+  const mappedError = uploadMapped || prismaMapped;
+
+  const statusCode = mappedError?.statusCode || error.statusCode || 500;
   const payload = {
-    message: prismaMapped?.message || error.message || "Internal server error",
+    message: mappedError?.message || error.message || "Internal server error",
   };
 
   if (prismaMapped?.details || error.details) {

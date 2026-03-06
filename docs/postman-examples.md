@@ -112,24 +112,20 @@ Allowed roles:
 `DELETE /products/1`
 
 
-### Import products from Excel CSV
+### Import products from Excel (.xlsx)
 `POST /products/import`
 
-Headers:
+Body → `form-data`
 
-```text
-Content-Type: text/csv
-```
+- key: `file`
+- type: `File`
+- value: `products.xlsx`
 
-Body (raw):
+Estructura esperada del Excel (primera fila: headers):
 
-```csv
-name,reference,description,active
-Lavamanos Delta,LVM-001,Lavamanos cerámico,true
-Grifería Nova,GRF-002,Monomando,1
-```
-
-> Tip: desde Excel usa **Guardar como CSV (UTF-8)** para importar rápidamente.
+| reference | name      | description      | active |
+| --------- | --------- | ---------------- | ------ |
+| REF001    | Product A | Some description | true   |
 
 
 ## Deliveries (Protected)

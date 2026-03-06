@@ -1,3 +1,4 @@
+import XLSX from "xlsx";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 
@@ -23,49 +24,25 @@ const getActiveProductEntityById = async (id) => {
   return product;
 };
 
-
-const parseCsvLine = (line) => {
-  const values = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === "," && !inQuotes) {
-      values.push(current.trim());
-      current = "";
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current.trim());
-  return values;
-};
-
 const normalizeHeader = (header) =>
   String(header || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 
-const parseActiveValue = (value, rowNumber) => {
+const parseActiveValue = (value) => {
   if (value === undefined || value === null || value === "") {
     return true;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
   }
 
   const normalized = String(value).trim().toLowerCase();
@@ -78,96 +55,101 @@ const parseActiveValue = (value, rowNumber) => {
     return false;
   }
 
-  throw new ApiError(400, "Invalid active value in import file", {
-    row: rowNumber,
-    value,
-    acceptedValues: ["true", "false", "1", "0", "si", "no"],
-  });
+  throw new Error("active must be true/false");
 };
 
-const getHeaderIndex = (normalizedHeaders, aliases) =>
-  normalizedHeaders.findIndex((header) => aliases.includes(header));
-
-export const importProductsFromCsv = async (csvContent) => {
-  if (!csvContent || !String(csvContent).trim()) {
-    throw new ApiError(400, "CSV content is required");
+export const importProductsFromExcel = async (filePath) => {
+  if (!filePath) {
+    throw new ApiError(400, "Excel file path is required");
   }
 
-  const rows = String(csvContent)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const workbook = XLSX.readFile(filePath);
+  const firstSheetName = workbook.SheetNames[0];
 
-  if (rows.length < 2) {
-    throw new ApiError(400, "CSV must include header and at least one data row");
+  if (!firstSheetName) {
+    throw new ApiError(400, "Excel file does not contain sheets");
   }
 
-  const normalizedHeaders = parseCsvLine(rows[0]).map(normalizeHeader);
-  const nameIndex = getHeaderIndex(normalizedHeaders, ["name", "nombre"]);
-  const referenceIndex = getHeaderIndex(normalizedHeaders, ["reference", "referencia", "codigo"]);
-  const descriptionIndex = getHeaderIndex(normalizedHeaders, ["description", "descripcion"]);
-  const activeIndex = getHeaderIndex(normalizedHeaders, ["active", "activo"]);
+  const worksheet = workbook.Sheets[firstSheetName];
+  const rows = XLSX.utils.sheet_to_json(worksheet, {
+    defval: "",
+    raw: false,
+  });
 
-  if (nameIndex === -1 || referenceIndex === -1) {
-    throw new ApiError(400, "CSV header must include name/nombre and reference/referencia");
+  const totalRows = rows.length;
+
+  if (totalRows === 0) {
+    return {
+      totalRows: 0,
+      validRows: 0,
+      importedCount: 0,
+      skippedCount: 0,
+      invalidRows: [],
+    };
   }
 
   const invalidRows = [];
   const productsToCreate = [];
-  const seenReferences = new Set();
 
-  rows.slice(1).forEach((line, idx) => {
-    const rowNumber = idx + 2;
-    const values = parseCsvLine(line);
+  rows.forEach((rawRow, index) => {
+    const rowNumber = index + 2;
+    const normalizedRow = Object.entries(rawRow).reduce((acc, [key, value]) => {
+      acc[normalizeHeader(key)] = value;
+      return acc;
+    }, {});
 
-    const name = values[nameIndex]?.trim();
-    const reference = values[referenceIndex]?.trim();
-    const description = descriptionIndex === -1 ? undefined : (values[descriptionIndex]?.trim() || null);
+    const reference = String(normalizedRow.reference || normalizedRow.referencia || "").trim();
+    const name = String(normalizedRow.name || normalizedRow.nombre || "").trim();
+    const descriptionValue = normalizedRow.description ?? normalizedRow.descripcion;
+    const description = descriptionValue === "" ? null : String(descriptionValue || "").trim() || null;
 
-    if (!name || !reference) {
-      invalidRows.push({ row: rowNumber, reason: "name and reference are required" });
+    if (!reference) {
+      invalidRows.push({ row: rowNumber, reason: "reference is required" });
       return;
     }
 
-    if (seenReferences.has(reference)) {
-      invalidRows.push({ row: rowNumber, reason: "reference is duplicated in file", reference });
+    if (!name) {
+      invalidRows.push({ row: rowNumber, reason: "name is required" });
       return;
     }
 
     let active = true;
 
     try {
-      if (activeIndex !== -1) {
-        active = parseActiveValue(values[activeIndex], rowNumber);
-      }
-    } catch (error) {
-      invalidRows.push({ row: rowNumber, reason: error.message, value: values[activeIndex] });
+      active = parseActiveValue(normalizedRow.active ?? normalizedRow.activo);
+    } catch {
+      invalidRows.push({ row: rowNumber, reason: "active must be true or false" });
       return;
     }
 
-    seenReferences.add(reference);
     productsToCreate.push({
-      name,
       reference,
+      name,
       description,
       active,
     });
   });
 
   if (productsToCreate.length === 0) {
-    throw new ApiError(400, "No valid rows to import", { invalidRows });
+    return {
+      totalRows,
+      validRows: 0,
+      importedCount: 0,
+      skippedCount: 0,
+      invalidRows,
+    };
   }
 
-  const result = await prisma.product.createMany({
+  const insertResult = await prisma.product.createMany({
     data: productsToCreate,
     skipDuplicates: true,
   });
 
   return {
-    totalRows: rows.length - 1,
+    totalRows,
     validRows: productsToCreate.length,
-    importedCount: result.count,
-    skippedCount: productsToCreate.length - result.count,
+    importedCount: insertResult.count,
+    skippedCount: productsToCreate.length - insertResult.count,
     invalidRows,
   };
 };
