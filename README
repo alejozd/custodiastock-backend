@@ -1,0 +1,260 @@
+# CustodiaStock
+
+Sistema web para **registro y trazabilidad de entregas de productos en custodia** dentro de una empresa.
+
+Permite registrar quién entrega, quién recibe, qué producto se entrega y almacenar la **firma digital del receptor**, funcionando como una **bitácora digital de custodia de inventario**.
+
+Este sistema está pensado para empresas donde los productos se mueven entre personas (bodega, técnicos, vendedores, instaladores, etc.) y se necesita saber **quién tiene cada elemento en cada momento**.
+
+---
+
+# Problema que resuelve
+
+En muchas empresas pequeñas o medianas:
+
+* los productos se entregan verbalmente
+* se anotan en cuadernos
+* no se sabe quién tiene el producto
+* se pierden elementos
+* no hay trazabilidad
+
+CustodiaStock permite registrar digitalmente cada entrega y conservar evidencia mediante **firma del receptor**.
+
+---
+
+# Características principales
+
+* Autenticación con **JWT**
+* Registro de **usuarios**
+* Registro de **productos**
+* Registro de **entregas**
+* Firma digital del receptor (imagen)
+* Historial de entregas
+* Cancelación de entregas (solo administrador)
+* Documentación automática con **Swagger**
+
+---
+
+# Arquitectura del sistema
+
+El proyecto está construido con una arquitectura moderna basada en servicios.
+
+```
+Frontend (React + Vite)
+        │
+        │ HTTP REST API
+        ▼
+Backend (Node.js + Express)
+        │
+        │ ORM
+        ▼
+Prisma
+        │
+        ▼
+MySQL Database
+```
+
+La aplicación se ejecuta utilizando **Docker** para simplificar despliegue y portabilidad.
+
+---
+
+# Stack tecnológico
+
+Backend
+
+* Node.js
+* Express
+* Prisma ORM
+* MySQL
+* JWT Authentication
+* Swagger API Docs
+
+Frontend
+
+* React
+* Vite
+
+Infraestructura
+
+* Docker
+* Docker Compose
+
+---
+
+# Estructura del proyecto
+
+```
+CustodiaStock
+│
+├── backend
+│   ├── src
+│   │   ├── controllers
+│   │   ├── routes
+│   │   ├── services
+│   │   ├── middleware
+│   │   └── server.js
+│   │
+│   └── prisma
+│       └── schema.prisma
+│
+├── frontend
+│
+└── docker-compose.yml
+```
+
+---
+
+# Ejecutar el proyecto
+
+## 1. Clonar el repositorio
+
+```
+git clone https://github.com/TU_USUARIO/custodiastock-backend
+```
+
+---
+
+## 2. Configurar variables de entorno
+
+Crear archivo `.env` dentro de `backend`.
+
+```
+DATABASE_URL="mysql://root:root@localhost:3306/custodia_db"
+JWT_SECRET=super-secret-key
+JWT_EXPIRES_IN=8h
+```
+
+---
+
+## 3. Generar Prisma Client
+
+Antes de hacerlo asegúrate de **detener cualquier proceso Node**.
+
+```
+npm run prisma:generate
+```
+
+---
+
+## 4. Sincronizar base de datos
+
+```
+npm run prisma:sync
+```
+
+---
+
+## 5. Ejecutar backend
+
+```
+npm run dev
+```
+
+Servidor:
+
+```
+http://localhost:3000
+```
+
+---
+
+# Documentación de la API
+
+Swagger UI disponible en:
+
+```
+http://localhost:3000/api/docs
+```
+
+Permite probar todos los endpoints directamente desde el navegador.
+
+---
+
+# Ejemplo de flujo de uso
+
+### 1 Login
+
+```
+POST /api/auth/login
+```
+
+```
+{
+  "email": "carlos@empresa.com",
+  "password": "Secure123!"
+}
+```
+
+Respuesta:
+
+```
+{
+  "token": "JWT_TOKEN"
+}
+```
+
+Enviar el token en todas las peticiones:
+
+```
+Authorization: Bearer JWT_TOKEN
+```
+
+---
+
+# Ejemplo de registro de entrega
+
+```
+POST /api/deliveries
+```
+
+```
+{
+  "productId": 1,
+  "quantity": 3,
+  "deliveredById": 1,
+  "receivedById": 2,
+  "signatureImage": "data:image/png;base64,iVBOR..."
+}
+```
+
+Esto registra:
+
+* producto
+* cantidad
+* quién entrega
+* quién recibe
+* firma digital del receptor
+
+---
+
+# Roles de usuario
+
+* ADMIN
+* OPERATOR
+
+ADMIN puede:
+
+* cancelar entregas
+* administrar usuarios
+
+---
+
+# Roadmap (mejoras futuras)
+
+* Inventario disponible por producto
+* Reportes de entregas
+* Búsqueda avanzada
+* Adjuntar fotos del producto
+* Exportar reportes PDF
+* Notificaciones
+* Auditoría completa de movimientos
+
+---
+
+# Autor
+
+Proyecto desarrollado por **Alejandro Zambrano**.
+
+Ingeniero de Sistemas especializado en desarrollo backend y arquitectura de aplicaciones.
+
+---
