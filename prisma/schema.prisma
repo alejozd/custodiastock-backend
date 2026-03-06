@@ -7,50 +7,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Usuario {
-  id        Int      @id @default(autoincrement())
-  nombre    String
-  email     String   @unique
+model User {
+  id        Int        @id @default(autoincrement())
+  name      String
+  email     String     @unique
   password  String
-  creadoEn  DateTime @default(now())
-
-  entregasRealizadas Entrega[] @relation("entregador")
-  entregasRecibidas  Entrega[] @relation("receptor")
+  role      String
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  delivered Delivery[] @relation("DeliveredBy")
+  received  Delivery[] @relation("ReceivedBy")
 }
 
-model Producto {
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  codigo      String   @unique
-  descripcion String?
-  creadoEn    DateTime @default(now())
-
-  detallesEntrega DetalleEntrega[]
+model Product {
+  id          Int        @id @default(autoincrement())
+  name        String
+  code        String     @unique
+  description String?
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  deliveries  Delivery[]
 }
 
-model Entrega {
-  id            Int      @id @default(autoincrement())
-  fecha         DateTime @default(now())
-  
-  entregadorId  Int
-  receptorId    Int
-  
-  firma         String   @db.LongText
-  
-  entregador Usuario @relation("entregador", fields: [entregadorId], references: [id])
-  receptor   Usuario @relation("receptor", fields: [receptorId], references: [id])
+model Delivery {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  quantity       Int
+  deliveredById  Int
+  receivedById   Int
+  signatureImage String   @db.LongText
+  createdAt      DateTime @default(now())
 
-  detalles DetalleEntrega[]
-}
+  product     Product @relation(fields: [productId], references: [id])
+  deliveredBy User    @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  receivedBy  User    @relation("ReceivedBy", fields: [receivedById], references: [id])
 
-model DetalleEntrega {
-  id         Int @id @default(autoincrement())
-  
-  entregaId  Int
-  productoId Int
-  
-  cantidad   Int
-
-  entrega  Entrega  @relation(fields: [entregaId], references: [id])
-  producto Producto @relation(fields: [productoId], references: [id])
+  @@index([productId])
+  @@index([deliveredById])
+  @@index([receivedById])
 }
