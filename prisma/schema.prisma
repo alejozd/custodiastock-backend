@@ -7,50 +7,76 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Usuario {
-  id        Int      @id @default(autoincrement())
-  nombre    String
-  email     String   @unique
+enum UserRole {
+  OPERATOR
+  ADMIN
+}
+
+enum DeliveryStatus {
+  ACTIVE
+  CANCELED
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String    @map("nombre")
+  email     String    @unique
   password  String
-  creadoEn  DateTime @default(now())
+  role      UserRole  @default(OPERATOR) @map("rol")
+  active    Boolean   @default(true) @map("activo")
+  createdAt DateTime  @default(now()) @map("creadoEn")
+  deletedAt DateTime? @map("eliminadoEn")
 
-  entregasRealizadas Entrega[] @relation("entregador")
-  entregasRecibidas  Entrega[] @relation("receptor")
+  delivered          Delivery[] @relation("DeliveredBy")
+  received           Delivery[] @relation("ReceivedBy")
+  canceledDeliveries Delivery[] @relation("CanceledBy")
+
+  @@map("Usuario")
 }
 
-model Producto {
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  codigo      String   @unique
-  descripcion String?
-  creadoEn    DateTime @default(now())
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String    @map("nombre")
+  reference   String    @unique @map("codigo")
+  description String?   @map("descripcion")
+  active      Boolean   @default(true) @map("activo")
+  createdAt   DateTime  @default(now()) @map("creadoEn")
+  deletedAt   DateTime? @map("eliminadoEn")
 
-  detallesEntrega DetalleEntrega[]
+  deliveryItems DeliveryItem[]
+
+  @@map("Producto")
 }
 
-model Entrega {
-  id            Int      @id @default(autoincrement())
-  fecha         DateTime @default(now())
-  
-  entregadorId  Int
-  receptorId    Int
-  
-  firma         String   @db.LongText
-  
-  entregador Usuario @relation("entregador", fields: [entregadorId], references: [id])
-  receptor   Usuario @relation("receptor", fields: [receptorId], references: [id])
+model Delivery {
+  id             Int            @id @default(autoincrement())
+  deliveredById  Int            @map("entregadorId")
+  receivedById   Int            @map("receptorId")
+  signatureImage String         @map("firma") @db.LongText
+  status         DeliveryStatus @default(ACTIVE) @map("estado")
+  canceledAt     DateTime?      @map("anuladoEn")
+  canceledById   Int?           @map("anuladoPorId")
+  cancelReason   String?        @map("motivoAnulacion")
+  createdAt      DateTime       @default(now()) @map("fecha")
+  deletedAt      DateTime?      @map("eliminadoEn")
 
-  detalles DetalleEntrega[]
+  deliveredBy User           @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  receivedBy  User           @relation("ReceivedBy", fields: [receivedById], references: [id])
+  canceledBy  User?          @relation("CanceledBy", fields: [canceledById], references: [id])
+  items       DeliveryItem[]
+
+  @@map("Entrega")
 }
 
-model DetalleEntrega {
-  id         Int @id @default(autoincrement())
-  
-  entregaId  Int
-  productoId Int
-  
-  cantidad   Int
+model DeliveryItem {
+  id         Int       @id @default(autoincrement())
+  deliveryId Int       @map("entregaId")
+  productId  Int       @map("productoId")
+  quantity   Int       @map("cantidad")
+  deletedAt  DateTime? @map("eliminadoEn")
 
-  entrega  Entrega  @relation(fields: [entregaId], references: [id])
-  producto Producto @relation(fields: [productoId], references: [id])
+  delivery Delivery @relation(fields: [deliveryId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@map("DetalleEntrega")
 }
