@@ -6,6 +6,12 @@ Base URL:
 http://localhost:3000/api
 ```
 
+Swagger UI:
+
+```text
+http://localhost:3000/api/docs
+```
+
 ## First run checklist
 
 1. Ensure `.env` has a valid `DATABASE_URL` (MySQL).
