@@ -8,7 +8,7 @@ const password = process.env.ADMIN_PASSWORD;
 export async function ensureAdminUser() {
   const existing = await prisma.user.findFirst({
     where: {
-      name: username,
+      username: username,
     },
   });
 
