@@ -22,24 +22,23 @@ if (!JWT_SECRET && IS_PRODUCTION) {
 
 const buildTokenPayload = (user) => ({
   sub: user.id,
-  email: user.email,
+  username: user.username,
   role: user.role,
   active: user.active,
 });
 
-export const login = async ({ email, password }) => {
-  if (!email || !password) {
-    throw new ApiError(400, "Email and password are required");
+export const login = async ({ username, password }) => {
+  if (!username || !password) {
+    throw new ApiError(400, "Username and password are required");
   }
 
-  const user = await prisma.user.findFirst({
+  const user = await prisma.user.findUnique({
     where: {
-      email,
-      deletedAt: null,
+      username,
     },
   });
 
-  if (!user) {
+  if (!user || user.deletedAt) {
     throw new ApiError(401, "Invalid credentials");
   }
 
@@ -75,7 +74,8 @@ export const login = async ({ email, password }) => {
     expiresIn: JWT_EXPIRES_IN,
     user: {
       id: user.id,
-      name: user.name,
+      username: user.username,
+      fullName: user.fullName,
       email: user.email,
       role: user.role,
       active: user.active,

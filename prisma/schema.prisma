@@ -21,7 +21,7 @@ model User {
   id        Int       @id @default(autoincrement())
   username  String    @unique
   fullName  String
-  email     String    @unique
+  email     String?   @unique
   password  String
   role      UserRole  @default(OPERATOR) @map("rol")
   active    Boolean   @default(true) @map("activo")
@@ -38,7 +38,7 @@ model User {
 model Product {
   id          Int       @id @default(autoincrement())
   name        String    @map("nombre")
-  reference   String    @unique @map("codigo")
+  reference   String    @unique
   description String?   @map("descripcion")
   active      Boolean   @default(true) @map("activo")
   createdAt   DateTime  @default(now()) @map("creadoEn")

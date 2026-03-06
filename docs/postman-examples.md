@@ -111,6 +111,23 @@ Allowed roles:
 ### Soft delete product
 `DELETE /products/1`
 
+
+### Import products from Excel (.xlsx)
+`POST /products/import`
+
+Body → `form-data`
+
+- key: `file`
+- type: `File`
+- value: `products.xlsx`
+
+Estructura esperada del Excel (primera fila: headers):
+
+| reference | name      | description      | active |
+| --------- | --------- | ---------------- | ------ |
+| REF001    | Product A | Some description | true   |
+
+
 ## Deliveries (Protected)
 
 ### Create delivery
