@@ -1,18 +1,23 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 
 const SALT_ROUNDS = 10;
 
 export const hashPassword = async (value) => bcrypt.hash(value, SALT_ROUNDS);
 
-const isSha256Hash = (value) => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+const isSha256Hash = (value) =>
+  typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
 
 export const verifyPassword = async (plainPassword, storedHash) => {
   if (!storedHash) {
     return false;
   }
 
-  if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$") || storedHash.startsWith("$2y$")) {
+  if (
+    storedHash.startsWith("$2a$") ||
+    storedHash.startsWith("$2b$") ||
+    storedHash.startsWith("$2y$")
+  ) {
     return bcrypt.compare(plainPassword, storedHash);
   }
 
