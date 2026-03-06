@@ -60,7 +60,7 @@ export const createUser = async (payload) => {
     data: {
       name: payload.name,
       email: payload.email,
-      password: hashPassword(payload.password),
+      password: await hashPassword(payload.password),
       role: payload.role ?? "OPERATOR",
       active: payload.active ?? true,
     },
@@ -89,7 +89,7 @@ export const updateUser = async (id, payload) => {
   const data = {
     ...(payload.name !== undefined && { name: payload.name }),
     ...(payload.email !== undefined && { email: payload.email }),
-    ...(payload.password !== undefined && { password: hashPassword(payload.password) }),
+    ...(payload.password !== undefined && { password: await hashPassword(payload.password) }),
     ...(payload.role !== undefined && { role: payload.role }),
     ...(payload.active !== undefined && { active: payload.active }),
   };

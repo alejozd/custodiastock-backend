@@ -9,8 +9,15 @@ http://localhost:3000/api
 ## First run checklist
 
 1. Ensure `.env` has a valid `DATABASE_URL` (MySQL).
-2. Stop any running Node process before generating Prisma client (important on Windows to avoid file lock / EPERM).
-3. Run:
+2. Configure JWT secret:
+
+```env
+JWT_SECRET=super-secret-key
+JWT_EXPIRES_IN=8h
+```
+
+3. Stop any running Node process before generating Prisma client (important on Windows to avoid file lock / EPERM).
+4. Run:
 
 ```bash
 npm run prisma:generate
@@ -18,7 +25,25 @@ npm run prisma:sync
 npm run dev
 ```
 
-## Users
+## Auth
+
+### Login
+`POST /auth/login`
+
+```json
+{
+  "email": "carlos@empresa.com",
+  "password": "Secure123!"
+}
+```
+
+Save `token` from response and send in all protected endpoints:
+
+```text
+Authorization: Bearer <token>
+```
+
+## Users (Protected)
 
 Allowed roles:
 - `OPERATOR`
@@ -50,7 +75,7 @@ Allowed roles:
 ### Soft delete user
 `DELETE /users/1`
 
-## Products
+## Products (Protected)
 
 ### Create product
 `POST /products`
@@ -77,7 +102,7 @@ Allowed roles:
 ### Soft delete product
 `DELETE /products/1`
 
-## Deliveries
+## Deliveries (Protected)
 
 ### Create delivery
 `POST /deliveries`
