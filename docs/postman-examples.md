@@ -18,19 +18,6 @@ npm run prisma:sync
 npm run dev
 ```
 
-### Windows EPERM quick fix (`query_engine-windows.dll.node`)
-
-If you get `EPERM: operation not permitted, rename ...query_engine-windows.dll.node`:
-
-- Close terminal sessions running Node/Nodemon.
-- Stop the backend process from VSCode/PowerShell.
-- Optionally delete `node_modules/.prisma/client`.
-- Run again:
-
-```bash
-npm run prisma:generate
-```
-
 ## Users
 
 Allowed roles:
@@ -50,24 +37,17 @@ Allowed roles:
 }
 ```
 
-### List users
-`GET /users`
-
-### Get user by id
-`GET /users/1`
-
 ### Update user
 `PUT /users/1`
 
 ```json
 {
-  "name": "Carlos Rojas Perez",
   "role": "OPERATOR",
   "active": false
 }
 ```
 
-### Delete user
+### Soft delete user
 `DELETE /users/1`
 
 ## Products
@@ -79,15 +59,10 @@ Allowed roles:
 {
   "name": "Lavamanos Delta",
   "reference": "LVM-001",
-  "description": "Lavamanos cerámico color blanco"
+  "description": "Lavamanos cerámico color blanco",
+  "active": true
 }
 ```
-
-### List products
-`GET /products`
-
-### Get product by id
-`GET /products/1`
 
 ### Update product
 `PUT /products/1`
@@ -95,9 +70,12 @@ Allowed roles:
 ```json
 {
   "reference": "LVM-001-A",
-  "description": "Lavamanos cerámico color blanco mate"
+  "active": false
 }
 ```
+
+### Soft delete product
+`DELETE /products/1`
 
 ## Deliveries
 
@@ -114,8 +92,15 @@ Allowed roles:
 }
 ```
 
-### List deliveries
-`GET /deliveries`
+### Cancel delivery (ADMIN only)
+`PATCH /deliveries/1/cancel`
 
-### Get delivery by id
-`GET /deliveries/1`
+```json
+{
+  "adminUserId": 1,
+  "reason": "Cantidad incorrecta en documento original"
+}
+```
+
+### Soft delete delivery
+`DELETE /deliveries/1`

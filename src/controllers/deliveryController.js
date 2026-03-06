@@ -1,5 +1,7 @@
 import {
+  cancelDelivery,
   createDelivery,
+  deleteDelivery,
   getDeliveries,
   getDeliveryById,
 } from "../services/deliveryService.js";
@@ -17,4 +19,14 @@ export const getDeliveriesController = async (req, res) => {
 export const getDeliveryByIdController = async (req, res) => {
   const delivery = await getDeliveryById(Number(req.params.id));
   res.json(delivery);
+};
+
+export const cancelDeliveryController = async (req, res) => {
+  const delivery = await cancelDelivery(Number(req.params.id), req.body);
+  res.json(delivery);
+};
+
+export const deleteDeliveryController = async (req, res) => {
+  await deleteDelivery(Number(req.params.id));
+  res.status(204).send();
 };

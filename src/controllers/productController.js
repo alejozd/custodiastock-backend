@@ -1,5 +1,6 @@
 import {
   createProduct,
+  deleteProduct,
   getProductById,
   getProducts,
   updateProduct,
@@ -23,4 +24,9 @@ export const getProductByIdController = async (req, res) => {
 export const updateProductController = async (req, res) => {
   const product = await updateProduct(Number(req.params.id), req.body);
   res.json(product);
+};
+
+export const deleteProductController = async (req, res) => {
+  await deleteProduct(Number(req.params.id));
+  res.status(204).send();
 };

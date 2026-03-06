@@ -11,6 +11,7 @@ const mapUserResponse = (user) => ({
   role: user.role,
   active: user.active,
   createdAt: user.createdAt,
+  deletedAt: user.deletedAt,
 });
 
 const assertValidRole = (role) => {
@@ -32,10 +33,25 @@ const assertUserPayload = (payload, isUpdate = false) => {
   assertValidRole(payload.role);
 };
 
+const getActiveUserEntityById = async (id) => {
+  const user = await prisma.user.findFirst({
+    where: { id, deletedAt: null },
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return user;
+};
+
 export const createUser = async (payload) => {
   assertUserPayload(payload);
 
-  const existing = await prisma.user.findUnique({ where: { email: payload.email } });
+  const existing = await prisma.user.findFirst({
+    where: { email: payload.email, deletedAt: null },
+  });
+
   if (existing) {
     throw new ApiError(409, "Email already in use");
   }
@@ -54,24 +70,21 @@ export const createUser = async (payload) => {
 };
 
 export const getUsers = async () => {
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "desc" } });
+  const users = await prisma.user.findMany({
+    where: { deletedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
   return users.map(mapUserResponse);
 };
 
 export const getUserById = async (id) => {
-  const user = await prisma.user.findUnique({ where: { id } });
-
-  if (!user) {
-    throw new ApiError(404, "User not found");
-  }
-
+  const user = await getActiveUserEntityById(id);
   return mapUserResponse(user);
 };
 
 export const updateUser = async (id, payload) => {
   assertUserPayload(payload, true);
-
-  await getUserById(id);
+  await getActiveUserEntityById(id);
 
   const data = {
     ...(payload.name !== undefined && { name: payload.name }),
@@ -99,6 +112,13 @@ export const updateUser = async (id, payload) => {
 };
 
 export const deleteUser = async (id) => {
-  await getUserById(id);
-  await prisma.user.delete({ where: { id } });
+  await getActiveUserEntityById(id);
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      active: false,
+    },
+  });
 };
