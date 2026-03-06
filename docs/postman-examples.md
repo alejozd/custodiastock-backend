@@ -16,6 +16,9 @@ JWT_SECRET=super-secret-key
 JWT_EXPIRES_IN=8h
 ```
 
+> If `JWT_SECRET` is missing in development, the API uses a temporary fallback secret and logs a warning.
+> In production, you must define `JWT_SECRET`.
+
 3. Stop any running Node process before generating Prisma client (important on Windows to avoid file lock / EPERM).
 4. Run:
 
