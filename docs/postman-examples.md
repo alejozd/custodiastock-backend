@@ -6,6 +6,20 @@ Base URL:
 http://localhost:3000/api
 ```
 
+## Important setup (first run)
+
+Before testing endpoints, sync the DB schema:
+
+```bash
+npm run prisma:sync
+```
+
+If your DB is empty, you can then start the API with:
+
+```bash
+npm run dev
+```
+
 ## Users
 
 ### Create user
