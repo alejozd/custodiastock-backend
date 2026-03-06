@@ -25,10 +25,10 @@ const options = {
       schemas: {
         LoginRequest: {
           type: "object",
-          required: ["email", "password"],
+          required: ["username", "password"],
           properties: {
-            email: { type: "string", format: "email", example: "carlos@empresa.com" },
-            password: { type: "string", example: "Secure123!" },
+            username: { type: "string", example: "alejo" },
+            password: { type: "string", example: "Pascal123*" },
           },
         },
         LoginResponse: {
@@ -41,8 +41,9 @@ const options = {
               type: "object",
               properties: {
                 id: { type: "integer", example: 1 },
-                name: { type: "string", example: "Carlos Rojas" },
-                email: { type: "string", example: "carlos@empresa.com" },
+                username: { type: "string", example: "alejo" },
+                fullName: { type: "string", example: "Carlos Rojas" },
+                email: { type: "string", nullable: true, example: "carlos@empresa.com" },
                 role: { type: "string", enum: ["OPERATOR", "ADMIN"], example: "ADMIN" },
                 active: { type: "boolean", example: true },
               },
@@ -51,10 +52,11 @@ const options = {
         },
         UserRequest: {
           type: "object",
-          required: ["name", "email", "password"],
+          required: ["username", "fullName", "password", "role"],
           properties: {
-            name: { type: "string", example: "Lady Real" },
-            email: { type: "string", format: "email", example: "lady@empresa.com" },
+            username: { type: "string", example: "lady" },
+            fullName: { type: "string", example: "Lady Real" },
+            email: { type: "string", format: "email", nullable: true, example: "lady@empresa.com" },
             password: { type: "string", example: "Secure123!" },
             role: { type: "string", enum: ["OPERATOR", "ADMIN"], example: "OPERATOR" },
             active: { type: "boolean", example: true },
@@ -64,8 +66,9 @@ const options = {
           type: "object",
           properties: {
             id: { type: "integer", example: 2 },
-            name: { type: "string", example: "Lady Real" },
-            email: { type: "string", format: "email", example: "lady@empresa.com" },
+            username: { type: "string", example: "lady" },
+            fullName: { type: "string", example: "Lady Real" },
+            email: { type: "string", format: "email", nullable: true, example: "lady@empresa.com" },
             role: { type: "string", enum: ["OPERATOR", "ADMIN"], example: "OPERATOR" },
             active: { type: "boolean", example: true },
             createdAt: { type: "string", format: "date-time", example: "2026-03-06T04:25:17.933Z" },

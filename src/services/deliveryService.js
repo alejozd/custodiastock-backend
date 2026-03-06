@@ -5,7 +5,8 @@ const deliveryInclude = {
   deliveredBy: {
     select: {
       id: true,
-      name: true,
+      username: true,
+      fullName: true,
       email: true,
       role: true,
       active: true,
@@ -14,7 +15,8 @@ const deliveryInclude = {
   receivedBy: {
     select: {
       id: true,
-      name: true,
+      username: true,
+      fullName: true,
       email: true,
       role: true,
       active: true,
@@ -23,7 +25,8 @@ const deliveryInclude = {
   canceledBy: {
     select: {
       id: true,
-      name: true,
+      username: true,
+      fullName: true,
       email: true,
       role: true,
     },

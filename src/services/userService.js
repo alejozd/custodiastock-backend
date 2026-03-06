@@ -6,7 +6,8 @@ const allowedRoles = ["OPERATOR", "ADMIN"];
 
 const mapUserResponse = (user) => ({
   id: user.id,
-  name: user.name,
+  username: user.username,
+  fullName: user.fullName,
   email: user.email,
   role: user.role,
   active: user.active,
@@ -21,7 +22,7 @@ const assertValidRole = (role) => {
 };
 
 const assertUserPayload = (payload, isUpdate = false) => {
-  const requiredFields = ["name", "email", "password"];
+  const requiredFields = ["username", "fullName", "password", "role"];
 
   if (!isUpdate) {
     const missing = requiredFields.filter((field) => !payload[field]);
@@ -48,25 +49,25 @@ const getActiveUserEntityById = async (id) => {
 export const createUser = async (payload) => {
   assertUserPayload(payload);
 
-  const existing = await prisma.user.findFirst({
-    where: { email: payload.email, deletedAt: null },
-  });
+  try {
+    const user = await prisma.user.create({
+      data: {
+        username: payload.username,
+        fullName: payload.fullName,
+        email: payload.email,
+        password: await hashPassword(payload.password),
+        role: payload.role,
+        active: payload.active ?? true,
+      },
+    });
 
-  if (existing) {
-    throw new ApiError(409, "Email already in use");
+    return mapUserResponse(user);
+  } catch (error) {
+    if (error.code === "P2002") {
+      throw new ApiError(409, "Username or email already in use");
+    }
+    throw error;
   }
-
-  const user = await prisma.user.create({
-    data: {
-      name: payload.name,
-      email: payload.email,
-      password: await hashPassword(payload.password),
-      role: payload.role ?? "OPERATOR",
-      active: payload.active ?? true,
-    },
-  });
-
-  return mapUserResponse(user);
 };
 
 export const getUsers = async () => {
@@ -87,7 +88,8 @@ export const updateUser = async (id, payload) => {
   await getActiveUserEntityById(id);
 
   const data = {
-    ...(payload.name !== undefined && { name: payload.name }),
+    ...(payload.username !== undefined && { username: payload.username }),
+    ...(payload.fullName !== undefined && { fullName: payload.fullName }),
     ...(payload.email !== undefined && { email: payload.email }),
     ...(payload.password !== undefined && { password: await hashPassword(payload.password) }),
     ...(payload.role !== undefined && { role: payload.role }),
@@ -96,7 +98,7 @@ export const updateUser = async (id, payload) => {
 
   if (Object.keys(data).length === 0) {
     throw new ApiError(400, "No supported fields sent for update", {
-      supportedFields: ["name", "email", "password", "role", "active"],
+      supportedFields: ["username", "fullName", "email", "password", "role", "active"],
     });
   }
 
@@ -105,7 +107,7 @@ export const updateUser = async (id, payload) => {
     return mapUserResponse(updated);
   } catch (error) {
     if (error.code === "P2002") {
-      throw new ApiError(409, "Email already in use");
+      throw new ApiError(409, "Username or email already in use");
     }
     throw error;
   }
