@@ -38,7 +38,7 @@ model User {
 model Product {
   id          Int       @id @default(autoincrement())
   name        String    @map("nombre")
-  reference   String    @unique @map("codigo")
+  reference   String    @unique
   description String?   @map("descripcion")
   active      Boolean   @default(true) @map("activo")
   createdAt   DateTime  @default(now()) @map("creadoEn")
