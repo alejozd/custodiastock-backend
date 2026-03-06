@@ -11,6 +11,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+app.use(express.text({ type: ["text/csv", "application/vnd.ms-excel"], limit: "10mb" }));
 
 app.get("/", (req, res) => {
   res.json({ message: "Custodia API running" });

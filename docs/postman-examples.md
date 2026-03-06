@@ -111,6 +111,27 @@ Allowed roles:
 ### Soft delete product
 `DELETE /products/1`
 
+
+### Import products from Excel CSV
+`POST /products/import`
+
+Headers:
+
+```text
+Content-Type: text/csv
+```
+
+Body (raw):
+
+```csv
+name,reference,description,active
+Lavamanos Delta,LVM-001,Lavamanos cerámico,true
+Grifería Nova,GRF-002,Monomando,1
+```
+
+> Tip: desde Excel usa **Guardar como CSV (UTF-8)** para importar rápidamente.
+
+
 ## Deliveries (Protected)
 
 ### Create delivery

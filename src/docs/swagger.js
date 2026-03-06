@@ -131,6 +131,28 @@ const options = {
             },
           },
         },
+
+        ProductImportResponse: {
+          type: "object",
+          properties: {
+            totalRows: { type: "integer", example: 10 },
+            validRows: { type: "integer", example: 8 },
+            importedCount: { type: "integer", example: 6 },
+            skippedCount: { type: "integer", example: 2 },
+            invalidRows: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  row: { type: "integer", example: 4 },
+                  reason: { type: "string", example: "name and reference are required" },
+                  reference: { type: "string", nullable: true, example: "LVM-001" },
+                  value: { type: "string", nullable: true, example: "talvez" },
+                },
+              },
+            },
+          },
+        },
         ErrorResponse: {
           type: "object",
           properties: {
@@ -260,6 +282,38 @@ const options = {
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/ProductResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      "/api/products/import": {
+        post: {
+          tags: ["Products"],
+          summary: "Importar productos masivamente desde CSV (compatible con Excel)",
+          description:
+            "Sube contenido CSV exportado desde Excel con encabezados: name|nombre, reference|referencia, description|descripcion (opcional), active|activo (opcional)",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "text/csv": {
+                schema: {
+                  type: "string",
+                  example:
+                    "name,reference,description,active\nLavamanos Delta,LVM-001,Lavamanos cerámico,true\nGrifería Nova,GRF-001,Monomando,1",
+                },
+              },
+            },
+          },
+          responses: {
+            "201": {
+              description: "Resultado de la importación",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ProductImportResponse" },
                 },
               },
             },

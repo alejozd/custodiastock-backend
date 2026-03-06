@@ -23,6 +23,155 @@ const getActiveProductEntityById = async (id) => {
   return product;
 };
 
+
+const parseCsvLine = (line) => {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+};
+
+const normalizeHeader = (header) =>
+  String(header || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "");
+
+const parseActiveValue = (value, rowNumber) => {
+  if (value === undefined || value === null || value === "") {
+    return true;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (["true", "1", "si", "sí", "yes", "y"].includes(normalized)) {
+    return true;
+  }
+
+  if (["false", "0", "no", "n"].includes(normalized)) {
+    return false;
+  }
+
+  throw new ApiError(400, "Invalid active value in import file", {
+    row: rowNumber,
+    value,
+    acceptedValues: ["true", "false", "1", "0", "si", "no"],
+  });
+};
+
+const getHeaderIndex = (normalizedHeaders, aliases) =>
+  normalizedHeaders.findIndex((header) => aliases.includes(header));
+
+export const importProductsFromCsv = async (csvContent) => {
+  if (!csvContent || !String(csvContent).trim()) {
+    throw new ApiError(400, "CSV content is required");
+  }
+
+  const rows = String(csvContent)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (rows.length < 2) {
+    throw new ApiError(400, "CSV must include header and at least one data row");
+  }
+
+  const normalizedHeaders = parseCsvLine(rows[0]).map(normalizeHeader);
+  const nameIndex = getHeaderIndex(normalizedHeaders, ["name", "nombre"]);
+  const referenceIndex = getHeaderIndex(normalizedHeaders, ["reference", "referencia", "codigo"]);
+  const descriptionIndex = getHeaderIndex(normalizedHeaders, ["description", "descripcion"]);
+  const activeIndex = getHeaderIndex(normalizedHeaders, ["active", "activo"]);
+
+  if (nameIndex === -1 || referenceIndex === -1) {
+    throw new ApiError(400, "CSV header must include name/nombre and reference/referencia");
+  }
+
+  const invalidRows = [];
+  const productsToCreate = [];
+  const seenReferences = new Set();
+
+  rows.slice(1).forEach((line, idx) => {
+    const rowNumber = idx + 2;
+    const values = parseCsvLine(line);
+
+    const name = values[nameIndex]?.trim();
+    const reference = values[referenceIndex]?.trim();
+    const description = descriptionIndex === -1 ? undefined : (values[descriptionIndex]?.trim() || null);
+
+    if (!name || !reference) {
+      invalidRows.push({ row: rowNumber, reason: "name and reference are required" });
+      return;
+    }
+
+    if (seenReferences.has(reference)) {
+      invalidRows.push({ row: rowNumber, reason: "reference is duplicated in file", reference });
+      return;
+    }
+
+    let active = true;
+
+    try {
+      if (activeIndex !== -1) {
+        active = parseActiveValue(values[activeIndex], rowNumber);
+      }
+    } catch (error) {
+      invalidRows.push({ row: rowNumber, reason: error.message, value: values[activeIndex] });
+      return;
+    }
+
+    seenReferences.add(reference);
+    productsToCreate.push({
+      name,
+      reference,
+      description,
+      active,
+    });
+  });
+
+  if (productsToCreate.length === 0) {
+    throw new ApiError(400, "No valid rows to import", { invalidRows });
+  }
+
+  const result = await prisma.product.createMany({
+    data: productsToCreate,
+    skipDuplicates: true,
+  });
+
+  return {
+    totalRows: rows.length - 1,
+    validRows: productsToCreate.length,
+    importedCount: result.count,
+    skippedCount: productsToCreate.length - result.count,
+    invalidRows,
+  };
+};
+
 export const createProduct = async (payload) => {
   const requiredFields = ["name", "reference"];
   const missing = requiredFields.filter((field) => !payload[field]);
