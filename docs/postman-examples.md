@@ -6,18 +6,29 @@ Base URL:
 http://localhost:3000/api
 ```
 
-## Important setup (first run)
+## First run checklist
 
-Before testing endpoints, sync the DB schema:
+1. Ensure `.env` has a valid `DATABASE_URL` (MySQL).
+2. Stop any running Node process before generating Prisma client (important on Windows to avoid file lock / EPERM).
+3. Run:
 
 ```bash
+npm run prisma:generate
 npm run prisma:sync
+npm run dev
 ```
 
-If your DB is empty, you can then start the API with:
+### Windows EPERM quick fix (`query_engine-windows.dll.node`)
+
+If you get `EPERM: operation not permitted, rename ...query_engine-windows.dll.node`:
+
+- Close terminal sessions running Node/Nodemon.
+- Stop the backend process from VSCode/PowerShell.
+- Optionally delete `node_modules/.prisma/client`.
+- Run again:
 
 ```bash
-npm run dev
+npm run prisma:generate
 ```
 
 ## Users
@@ -35,6 +46,8 @@ npm run dev
 }
 ```
 
+> Note: with the current legacy DB schema, `role` and `active` are accepted in API contracts but not persisted in DB yet.
+
 ### List users
 `GET /users`
 
@@ -47,8 +60,7 @@ npm run dev
 ```json
 {
   "name": "Carlos Rojas Perez",
-  "role": "SUPERVISOR",
-  "active": true
+  "password": "NewSecure123!"
 }
 ```
 
@@ -69,6 +81,8 @@ npm run dev
 }
 ```
 
+> Note: with the current legacy DB schema, `active` is accepted in API contracts but not persisted in DB yet.
+
 ### List products
 `GET /products`
 
@@ -80,8 +94,7 @@ npm run dev
 
 ```json
 {
-  "description": "Lavamanos cerámico color blanco mate",
-  "active": true
+  "description": "Lavamanos cerámico color blanco mate"
 }
 ```
 

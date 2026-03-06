@@ -8,41 +8,52 @@ datasource db {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  name      String
-  email     String     @unique
+  id        Int      @id @default(autoincrement())
+  name      String   @map("nombre")
+  email     String   @unique
   password  String
-  role      String
-  active    Boolean    @default(true)
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now()) @map("creadoEn")
+
   delivered Delivery[] @relation("DeliveredBy")
   received  Delivery[] @relation("ReceivedBy")
+
+  @@map("Usuario")
 }
 
 model Product {
-  id          Int        @id @default(autoincrement())
-  name        String
-  code        String     @unique
-  description String?
-  active      Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  deliveries  Delivery[]
+  id          Int      @id @default(autoincrement())
+  name        String   @map("nombre")
+  code        String   @unique @map("codigo")
+  description String?  @map("descripcion")
+  createdAt   DateTime @default(now()) @map("creadoEn")
+
+  deliveryItems DeliveryItem[]
+
+  @@map("Producto")
 }
 
 model Delivery {
   id             Int      @id @default(autoincrement())
-  productId      Int
-  quantity       Int
-  deliveredById  Int
-  receivedById   Int
-  signatureImage String   @db.LongText
-  createdAt      DateTime @default(now())
+  deliveredById  Int      @map("entregadorId")
+  receivedById   Int      @map("receptorId")
+  signatureImage String   @map("firma") @db.LongText
+  createdAt      DateTime @default(now()) @map("fecha")
 
-  product     Product @relation(fields: [productId], references: [id])
-  deliveredBy User    @relation("DeliveredBy", fields: [deliveredById], references: [id])
-  receivedBy  User    @relation("ReceivedBy", fields: [receivedById], references: [id])
+  deliveredBy User           @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  receivedBy  User           @relation("ReceivedBy", fields: [receivedById], references: [id])
+  items       DeliveryItem[]
 
-  @@index([productId])
-  @@index([deliveredById])
-  @@index([receivedById])
+  @@map("Entrega")
+}
+
+model DeliveryItem {
+  id         Int @id @default(autoincrement())
+  deliveryId Int @map("entregaId")
+  productId  Int @map("productoId")
+  quantity   Int @map("cantidad")
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@map("DetalleEntrega")
 }
