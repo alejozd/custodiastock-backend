@@ -7,6 +7,8 @@ const deliveryInclude = {
       id: true,
       name: true,
       email: true,
+      role: true,
+      active: true,
     },
   },
   receivedBy: {
@@ -14,6 +16,8 @@ const deliveryInclude = {
       id: true,
       name: true,
       email: true,
+      role: true,
+      active: true,
     },
   },
   items: {
@@ -22,7 +26,7 @@ const deliveryInclude = {
         select: {
           id: true,
           name: true,
-          code: true,
+          reference: true,
         },
       },
     },
@@ -74,12 +78,12 @@ export const createDelivery = async (payload) => {
     throw new ApiError(400, "Product does not exist");
   }
 
-  if (!deliveredBy) {
-    throw new ApiError(400, "DeliveredBy user does not exist");
+  if (!deliveredBy || !deliveredBy.active) {
+    throw new ApiError(400, "DeliveredBy user does not exist or is inactive");
   }
 
-  if (!receivedBy) {
-    throw new ApiError(400, "ReceivedBy user does not exist");
+  if (!receivedBy || !receivedBy.active) {
+    throw new ApiError(400, "ReceivedBy user does not exist or is inactive");
   }
 
   const delivery = await prisma.delivery.create({

@@ -33,6 +33,10 @@ npm run prisma:generate
 
 ## Users
 
+Allowed roles:
+- `OPERATOR`
+- `ADMIN`
+
 ### Create user
 `POST /users`
 
@@ -41,12 +45,10 @@ npm run prisma:generate
   "name": "Carlos Rojas",
   "email": "carlos@empresa.com",
   "password": "Secure123!",
-  "role": "WAREHOUSE",
+  "role": "ADMIN",
   "active": true
 }
 ```
-
-> Note: with the current legacy DB schema, `role` and `active` are accepted in API contracts but not persisted in DB yet.
 
 ### List users
 `GET /users`
@@ -60,7 +62,8 @@ npm run prisma:generate
 ```json
 {
   "name": "Carlos Rojas Perez",
-  "password": "NewSecure123!"
+  "role": "OPERATOR",
+  "active": false
 }
 ```
 
@@ -75,13 +78,10 @@ npm run prisma:generate
 ```json
 {
   "name": "Lavamanos Delta",
-  "code": "LVM-001",
-  "description": "Lavamanos cerámico color blanco",
-  "active": true
+  "reference": "LVM-001",
+  "description": "Lavamanos cerámico color blanco"
 }
 ```
-
-> Note: with the current legacy DB schema, `active` is accepted in API contracts but not persisted in DB yet.
 
 ### List products
 `GET /products`
@@ -94,6 +94,7 @@ npm run prisma:generate
 
 ```json
 {
+  "reference": "LVM-001-A",
   "description": "Lavamanos cerámico color blanco mate"
 }
 ```

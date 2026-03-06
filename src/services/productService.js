@@ -4,14 +4,14 @@ import { ApiError } from "../utils/apiError.js";
 const mapProductResponse = (product) => ({
   id: product.id,
   name: product.name,
-  code: product.code,
+  reference: product.reference,
   description: product.description,
   active: true,
   createdAt: product.createdAt,
 });
 
 export const createProduct = async (payload) => {
-  const requiredFields = ["name", "code"];
+  const requiredFields = ["name", "reference"];
   const missing = requiredFields.filter((field) => !payload[field]);
 
   if (missing.length) {
@@ -22,7 +22,7 @@ export const createProduct = async (payload) => {
     const product = await prisma.product.create({
       data: {
         name: payload.name,
-        code: payload.code,
+        reference: payload.reference,
         description: payload.description,
       },
     });
@@ -30,7 +30,7 @@ export const createProduct = async (payload) => {
     return mapProductResponse(product);
   } catch (error) {
     if (error.code === "P2002") {
-      throw new ApiError(409, "Product code already in use");
+      throw new ApiError(409, "Product reference already in use");
     }
     throw error;
   }
@@ -56,13 +56,13 @@ export const updateProduct = async (id, payload) => {
 
   const data = {
     ...(payload.name !== undefined && { name: payload.name }),
-    ...(payload.code !== undefined && { code: payload.code }),
+    ...(payload.reference !== undefined && { reference: payload.reference }),
     ...(payload.description !== undefined && { description: payload.description }),
   };
 
   if (Object.keys(data).length === 0) {
     throw new ApiError(400, "No supported fields sent for update", {
-      supportedFields: ["name", "code", "description"],
+      supportedFields: ["name", "reference", "description"],
     });
   }
 
@@ -71,7 +71,7 @@ export const updateProduct = async (id, payload) => {
     return mapProductResponse(product);
   } catch (error) {
     if (error.code === "P2002") {
-      throw new ApiError(409, "Product code already in use");
+      throw new ApiError(409, "Product reference already in use");
     }
     throw error;
   }

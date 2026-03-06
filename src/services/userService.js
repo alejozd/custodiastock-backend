@@ -2,14 +2,22 @@ import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import { hashPassword } from "../utils/hash.js";
 
+const allowedRoles = ["OPERATOR", "ADMIN"];
+
 const mapUserResponse = (user) => ({
   id: user.id,
   name: user.name,
   email: user.email,
-  role: "OPERATOR",
-  active: true,
+  role: user.role,
+  active: user.active,
   createdAt: user.createdAt,
 });
+
+const assertValidRole = (role) => {
+  if (role !== undefined && !allowedRoles.includes(role)) {
+    throw new ApiError(400, "Invalid role", { allowedRoles });
+  }
+};
 
 const assertUserPayload = (payload, isUpdate = false) => {
   const requiredFields = ["name", "email", "password"];
@@ -20,6 +28,8 @@ const assertUserPayload = (payload, isUpdate = false) => {
       throw new ApiError(400, "Missing required user fields", { missing });
     }
   }
+
+  assertValidRole(payload.role);
 };
 
 export const createUser = async (payload) => {
@@ -35,6 +45,8 @@ export const createUser = async (payload) => {
       name: payload.name,
       email: payload.email,
       password: hashPassword(payload.password),
+      role: payload.role ?? "OPERATOR",
+      active: payload.active ?? true,
     },
   });
 
@@ -65,11 +77,13 @@ export const updateUser = async (id, payload) => {
     ...(payload.name !== undefined && { name: payload.name }),
     ...(payload.email !== undefined && { email: payload.email }),
     ...(payload.password !== undefined && { password: hashPassword(payload.password) }),
+    ...(payload.role !== undefined && { role: payload.role }),
+    ...(payload.active !== undefined && { active: payload.active }),
   };
 
   if (Object.keys(data).length === 0) {
     throw new ApiError(400, "No supported fields sent for update", {
-      supportedFields: ["name", "email", "password"],
+      supportedFields: ["name", "email", "password", "role", "active"],
     });
   }
 

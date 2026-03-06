@@ -7,11 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  OPERATOR
+  ADMIN
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   name      String   @map("nombre")
   email     String   @unique
   password  String
+  role      UserRole @default(OPERATOR) @map("rol")
+  active    Boolean  @default(true) @map("activo")
   createdAt DateTime @default(now()) @map("creadoEn")
 
   delivered Delivery[] @relation("DeliveredBy")
@@ -23,7 +30,7 @@ model User {
 model Product {
   id          Int      @id @default(autoincrement())
   name        String   @map("nombre")
-  code        String   @unique @map("codigo")
+  reference   String   @unique @map("codigo")
   description String?  @map("descripcion")
   createdAt   DateTime @default(now()) @map("creadoEn")
 
