@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  password  String
+  creadoEn  DateTime @default(now())
+
+  entregasRealizadas Entrega[] @relation("entregador")
+  entregasRecibidas  Entrega[] @relation("receptor")
+}
+
+model Producto {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  codigo      String   @unique
+  descripcion String?
+  creadoEn    DateTime @default(now())
+
+  detallesEntrega DetalleEntrega[]
+}
+
+model Entrega {
+  id            Int      @id @default(autoincrement())
+  fecha         DateTime @default(now())
+  
+  entregadorId  Int
+  receptorId    Int
+  
+  firma         String   @db.LongText
+  
+  entregador Usuario @relation("entregador", fields: [entregadorId], references: [id])
+  receptor   Usuario @relation("receptor", fields: [receptorId], references: [id])
+
+  detalles DetalleEntrega[]
+}
+
+model DetalleEntrega {
+  id         Int @id @default(autoincrement())
+  
+  entregaId  Int
+  productoId Int
+  
+  cantidad   Int
+
+  entrega  Entrega  @relation(fields: [entregaId], references: [id])
+  producto Producto @relation(fields: [productoId], references: [id])
+}
