@@ -11,8 +11,8 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://192.168.1.50:8081",
-    credentials: true,
+    origin: "*",
+    credentials: false,
   }),
 );
 
