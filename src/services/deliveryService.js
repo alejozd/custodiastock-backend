@@ -64,8 +64,10 @@ const mapDeliveryResponse = (delivery) => {
     cancelReason: delivery.cancelReason,
     canceledAt: delivery.canceledAt,
     canceledById: delivery.canceledById,
-    deliveryDate: delivery.deliveryDate,
-    createdAt: delivery.createdAt,
+    deliveryDate: delivery.deliveryDate
+      ? delivery.deliveryDate.toISOString()
+      : null,
+    createdAt: delivery.createdAt ? delivery.createdAt.toISOString() : null,
     deletedAt: delivery.deletedAt,
     product: firstItem?.product ?? null,
     deliveredBy: delivery.deliveredBy,
