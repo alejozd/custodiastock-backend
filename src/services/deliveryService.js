@@ -211,7 +211,7 @@ export const getDeliveries = async (filters = {}) => {
 
   const deliveries = await prisma.delivery.findMany({
     where,
-    orderBy: { documentNumber: "desc" },
+    orderBy: { deliveryDate: "desc" },
     include: deliveryInclude,
   });
 
