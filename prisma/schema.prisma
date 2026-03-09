@@ -59,6 +59,7 @@ model Delivery {
   canceledAt     DateTime?      @map("anuladoEn")
   canceledById   Int?           @map("anuladoPorId")
   cancelReason   String?        @map("motivoAnulacion")
+  deliveryDate   DateTime?       @map("fechaEntrega")
   createdAt      DateTime       @default(now()) @map("fecha")
   deletedAt      DateTime?      @map("eliminadoEn")
 

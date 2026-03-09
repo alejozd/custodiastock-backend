@@ -64,6 +64,7 @@ const mapDeliveryResponse = (delivery) => {
     cancelReason: delivery.cancelReason,
     canceledAt: delivery.canceledAt,
     canceledById: delivery.canceledById,
+    deliveryDate: delivery.deliveryDate,
     createdAt: delivery.createdAt,
     deletedAt: delivery.deletedAt,
     product: firstItem?.product ?? null,
@@ -97,6 +98,7 @@ export const createDelivery = async (payload) => {
     "deliveredById",
     "receivedById",
     "signatureImage",
+    "deliveryDate",
   ];
 
   const missing = requiredFields.filter((field) => !payload[field]);
@@ -109,9 +111,15 @@ export const createDelivery = async (payload) => {
   }
 
   const [product, deliveredBy, receivedBy] = await Promise.all([
-    prisma.product.findFirst({ where: { id: payload.productId, deletedAt: null } }),
-    prisma.user.findFirst({ where: { id: payload.deliveredById, deletedAt: null } }),
-    prisma.user.findFirst({ where: { id: payload.receivedById, deletedAt: null } }),
+    prisma.product.findFirst({
+      where: { id: payload.productId, deletedAt: null },
+    }),
+    prisma.user.findFirst({
+      where: { id: payload.deliveredById, deletedAt: null },
+    }),
+    prisma.user.findFirst({
+      where: { id: payload.receivedById, deletedAt: null },
+    }),
   ]);
 
   if (!product || !product.active) {
@@ -133,6 +141,7 @@ export const createDelivery = async (payload) => {
         deliveredById: payload.deliveredById,
         receivedById: payload.receivedById,
         signatureImage: payload.signatureImage,
+        deliveryDate: new Date(payload.deliveryDate),
         items: {
           create: {
             productId: payload.productId,
@@ -149,7 +158,10 @@ export const createDelivery = async (payload) => {
     return mapDeliveryResponse(delivery);
   } catch (error) {
     // Check for unique constraint violation on documentNumber
-    if (error.code === "P2002" && error.meta?.target?.includes("numeroDocumento")) {
+    if (
+      error.code === "P2002" &&
+      error.meta?.target?.includes("numeroDocumento")
+    ) {
       const nextSuggested = await peekNextNumber("ENTREGA");
       throw new ApiError(409, "Document number already exists", {
         suggestedNumber: nextSuggested,
@@ -167,23 +179,23 @@ export const getDeliveries = async (filters = {}) => {
   };
 
   if (startDate || endDate) {
-    where.createdAt = {};
+    where.deliveryDate = {};
     if (startDate) {
-      where.createdAt.gte = new Date(startDate);
+      where.deliveryDate.gte = new Date(startDate);
     }
     if (endDate) {
       const end = new Date(endDate);
-      // Set to end of day if only date is provided
+      // Si la fecha viene solo como YYYY-MM-DD (10 caracteres)
       if (endDate.length <= 10) {
         end.setHours(23, 59, 59, 999);
       }
-      where.createdAt.lte = end;
+      where.deliveryDate.lte = end; // Antes decía createdAt, ¡bien corregido!
     }
   }
 
   const deliveries = await prisma.delivery.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: { deliveryDate: "desc" },
     include: deliveryInclude,
   });
 
