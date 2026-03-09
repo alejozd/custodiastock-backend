@@ -51,6 +51,7 @@ model Product {
 
 model Delivery {
   id             Int            @id @default(autoincrement())
+  documentNumber String         @unique @map("numeroDocumento") @db.VarChar(20)
   deliveredById  Int            @map("entregadorId")
   receivedById   Int            @map("receptorId")
   signatureImage String         @map("firma") @db.LongText
@@ -80,4 +81,13 @@ model DeliveryItem {
   product  Product  @relation(fields: [productId], references: [id])
 
   @@map("DetalleEntrega")
+}
+
+model Sequence {
+  id         Int    @id @default(autoincrement())
+  name       String @unique @map("nombre")
+  prefix     String @default("") @map("prefijo")
+  nextNumber Int    @default(1) @map("siguienteNumero")
+
+  @@map("Secuencia")
 }

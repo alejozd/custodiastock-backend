@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
+import { ensureSequenceAdvanced, peekNextNumber } from "./sequenceService.js";
 
 const deliveryInclude = {
   deliveredBy: {
@@ -53,6 +54,7 @@ const mapDeliveryResponse = (delivery) => {
 
   return {
     id: delivery.id,
+    documentNumber: delivery.documentNumber,
     status: delivery.status,
     productId: firstItem?.productId ?? null,
     quantity: firstItem?.quantity ?? null,
@@ -89,6 +91,7 @@ const getActiveDeliveryEntityById = async (id) => {
 
 export const createDelivery = async (payload) => {
   const requiredFields = [
+    "documentNumber",
     "productId",
     "quantity",
     "deliveredById",
@@ -123,29 +126,63 @@ export const createDelivery = async (payload) => {
     throw new ApiError(400, "ReceivedBy user does not exist or is inactive");
   }
 
-  const delivery = await prisma.delivery.create({
-    data: {
-      deliveredById: payload.deliveredById,
-      receivedById: payload.receivedById,
-      signatureImage: payload.signatureImage,
-      items: {
-        create: {
-          productId: payload.productId,
-          quantity: payload.quantity,
+  try {
+    const delivery = await prisma.delivery.create({
+      data: {
+        documentNumber: payload.documentNumber,
+        deliveredById: payload.deliveredById,
+        receivedById: payload.receivedById,
+        signatureImage: payload.signatureImage,
+        items: {
+          create: {
+            productId: payload.productId,
+            quantity: payload.quantity,
+          },
         },
       },
-    },
-    include: deliveryInclude,
-  });
+      include: deliveryInclude,
+    });
 
-  return mapDeliveryResponse(delivery);
+    // Advance sequence if necessary
+    await ensureSequenceAdvanced("ENTREGA", payload.documentNumber);
+
+    return mapDeliveryResponse(delivery);
+  } catch (error) {
+    // Check for unique constraint violation on documentNumber
+    if (error.code === "P2002" && error.meta?.target?.includes("numeroDocumento")) {
+      const nextSuggested = await peekNextNumber("ENTREGA");
+      throw new ApiError(409, "Document number already exists", {
+        suggestedNumber: nextSuggested,
+      });
+    }
+    throw error;
+  }
 };
 
-export const getDeliveries = async () => {
+export const getDeliveries = async (filters = {}) => {
+  const { startDate, endDate } = filters;
+
+  const where = {
+    deletedAt: null,
+  };
+
+  if (startDate || endDate) {
+    where.createdAt = {};
+    if (startDate) {
+      where.createdAt.gte = new Date(startDate);
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      // Set to end of day if only date is provided
+      if (endDate.length <= 10) {
+        end.setHours(23, 59, 59, 999);
+      }
+      where.createdAt.lte = end;
+    }
+  }
+
   const deliveries = await prisma.delivery.findMany({
-    where: {
-      deletedAt: null,
-    },
+    where,
     orderBy: { createdAt: "desc" },
     include: deliveryInclude,
   });

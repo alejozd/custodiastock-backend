@@ -5,6 +5,12 @@ import {
   getDeliveries,
   getDeliveryById,
 } from "../services/deliveryService.js";
+import { getNextNumber } from "../services/sequenceService.js";
+
+export const getNextNumberController = async (req, res) => {
+  const nextNumber = await getNextNumber("ENTREGA");
+  res.json({ nextNumber });
+};
 
 export const createDeliveryController = async (req, res) => {
   const delivery = await createDelivery(req.body);
@@ -12,7 +18,8 @@ export const createDeliveryController = async (req, res) => {
 };
 
 export const getDeliveriesController = async (req, res) => {
-  const deliveries = await getDeliveries();
+  const { startDate, endDate } = req.query;
+  const deliveries = await getDeliveries({ startDate, endDate });
   res.json(deliveries);
 };
 
