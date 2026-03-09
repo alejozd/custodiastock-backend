@@ -136,6 +136,7 @@ export const createDelivery = async (payload) => {
     throw new ApiError(400, "ReceivedBy user does not exist or is inactive");
   }
 
+  const localDate = new Date(payload.deliveryDate);
   try {
     const delivery = await prisma.delivery.create({
       data: {
@@ -143,7 +144,7 @@ export const createDelivery = async (payload) => {
         deliveredById: payload.deliveredById,
         receivedById: payload.receivedById,
         signatureImage: payload.signatureImage,
-        deliveryDate: new Date(payload.deliveryDate),
+        deliveryDate: localDate,
         items: {
           create: {
             productId: payload.productId,
