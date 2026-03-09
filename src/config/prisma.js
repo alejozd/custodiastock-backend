@@ -6,6 +6,7 @@ const modelAliases = {
   user: ["user", "usuario"],
   product: ["product", "producto"],
   delivery: ["delivery", "entrega"],
+  sequence: ["sequence", "secuencia"],
 };
 
 const prisma = new Proxy(prismaClient, {
