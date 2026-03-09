@@ -5,10 +5,10 @@ import {
   getDeliveries,
   getDeliveryById,
 } from "../services/deliveryService.js";
-import { getNextNumber } from "../services/sequenceService.js";
+import { getNextNumber, peekNextNumber } from "../services/sequenceService.js";
 
 export const getNextNumberController = async (req, res) => {
-  const nextNumber = await getNextNumber("ENTREGA");
+  const nextNumber = await peekNextNumber("ENTREGA");
   res.json({ nextNumber });
 };
 
