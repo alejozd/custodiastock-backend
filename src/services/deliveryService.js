@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
-import { peekNextNumber } from "./sequenceService.js";
+import { ensureSequenceAdvanced, peekNextNumber } from "./sequenceService.js";
 
 const deliveryInclude = {
   deliveredBy: {
@@ -143,11 +143,14 @@ export const createDelivery = async (payload) => {
       include: deliveryInclude,
     });
 
+    // Advance sequence if necessary
+    await ensureSequenceAdvanced("ENTREGA", payload.documentNumber);
+
     return mapDeliveryResponse(delivery);
   } catch (error) {
     // Check for unique constraint violation on documentNumber
     if (error.code === "P2002" && error.meta?.target?.includes("numeroDocumento")) {
-      const nextSuggested = await peekNextNumber("delivery");
+      const nextSuggested = await peekNextNumber("ENTREGA");
       throw new ApiError(409, "Document number already exists", {
         suggestedNumber: nextSuggested,
       });
@@ -156,11 +159,30 @@ export const createDelivery = async (payload) => {
   }
 };
 
-export const getDeliveries = async () => {
+export const getDeliveries = async (filters = {}) => {
+  const { startDate, endDate } = filters;
+
+  const where = {
+    deletedAt: null,
+  };
+
+  if (startDate || endDate) {
+    where.createdAt = {};
+    if (startDate) {
+      where.createdAt.gte = new Date(startDate);
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      // Set to end of day if only date is provided
+      if (endDate.length <= 10) {
+        end.setHours(23, 59, 59, 999);
+      }
+      where.createdAt.lte = end;
+    }
+  }
+
   const deliveries = await prisma.delivery.findMany({
-    where: {
-      deletedAt: null,
-    },
+    where,
     orderBy: { createdAt: "desc" },
     include: deliveryInclude,
   });

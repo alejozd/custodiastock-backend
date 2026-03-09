@@ -63,6 +63,29 @@ export const getSequenceById = async (id) => {
   });
 };
 
+/**
+ * Ensures the sequence is advanced beyond the used number.
+ * Useful when a number is manually provided or a conflict was resolved.
+ */
+export const ensureSequenceAdvanced = async (name, usedNumberStr) => {
+  // Extract the numeric part from the string (e.g., "ENT-000001" -> 1)
+  const sequence = await prisma.sequence.findUnique({ where: { name } });
+  if (!sequence) return;
+
+  const prefix = sequence.prefix;
+  if (!usedNumberStr.startsWith(prefix)) return;
+
+  const numericPart = parseInt(usedNumberStr.replace(prefix, ""), 10);
+  if (isNaN(numericPart)) return;
+
+  if (numericPart >= sequence.nextNumber) {
+    await prisma.sequence.update({
+      where: { id: sequence.id },
+      data: { nextNumber: numericPart + 1 },
+    });
+  }
+};
+
 export const createSequence = async (data) => {
   return await prisma.sequence.create({
     data: {
