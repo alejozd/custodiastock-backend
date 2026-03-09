@@ -52,3 +52,40 @@ export const peekNextNumber = async (name) => {
 
   return `${sequence.prefix}${sequence.nextNumber.toString().padStart(6, "0")}`;
 };
+
+export const getAllSequences = async () => {
+  return await prisma.sequence.findMany();
+};
+
+export const getSequenceById = async (id) => {
+  return await prisma.sequence.findUnique({
+    where: { id },
+  });
+};
+
+export const createSequence = async (data) => {
+  return await prisma.sequence.create({
+    data: {
+      name: data.name,
+      prefix: data.prefix ?? "",
+      nextNumber: data.nextNumber ?? 1,
+    },
+  });
+};
+
+export const updateSequence = async (id, data) => {
+  return await prisma.sequence.update({
+    where: { id },
+    data: {
+      name: data.name,
+      prefix: data.prefix,
+      nextNumber: data.nextNumber,
+    },
+  });
+};
+
+export const deleteSequence = async (id) => {
+  return await prisma.sequence.delete({
+    where: { id },
+  });
+};
