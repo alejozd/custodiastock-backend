@@ -1,6 +1,14 @@
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import { ensureSequenceAdvanced, peekNextNumber } from "./sequenceService.js";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+// Configuración de Day.js para manejar Colombia
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const COLOMBIA_TZ = "America/Bogota";
 
 const deliveryInclude = {
   deliveredBy: {
@@ -183,7 +191,10 @@ export const getDeliveries = async (filters = {}) => {
   if (startDate || endDate) {
     where.deliveryDate = {};
     if (startDate) {
-      where.deliveryDate.gte = new Date(startDate);
+      where.deliveryDate.gte = dayjs
+        .tz(startDate, COLOMBIA_TZ)
+        .startOf("day")
+        .toDate();
     }
     if (endDate) {
       const end = new Date(endDate);
@@ -191,13 +202,16 @@ export const getDeliveries = async (filters = {}) => {
       if (endDate.length <= 10) {
         end.setHours(23, 59, 59, 999);
       }
-      where.deliveryDate.lte = end; // Antes decía createdAt, ¡bien corregido!
+      where.deliveryDate.lte = dayjs
+        .tz(endDate, COLOMBIA_TZ)
+        .endOf("day")
+        .toDate();
     }
   }
 
   const deliveries = await prisma.delivery.findMany({
     where,
-    orderBy: { deliveryDate: "desc" },
+    orderBy: { documentNumber: "desc" },
     include: deliveryInclude,
   });
 
