@@ -155,3 +155,38 @@ Estructura esperada del Excel (primera fila: headers):
 
 ### Soft delete delivery
 `DELETE /deliveries/1`
+
+## Entries (Protected)
+
+### Get next document number
+`GET /entries/next-number`
+
+### Create entry
+`POST /entries`
+
+```json
+{
+  "documentNumber": "ENTR-000001",
+  "productId": 1,
+  "quantity": 10,
+  "userId": 1,
+  "entryDate": "2025-05-20"
+}
+```
+
+### List entries
+`GET /entries`
+`GET /entries?startDate=2025-05-01&endDate=2025-05-31`
+
+### Get entry by ID
+`GET /entries/1`
+
+### Cancel entry (ADMIN only)
+`PATCH /entries/1/cancel`
+
+```json
+{
+  "adminUserId": 1,
+  "reason": "Error en el conteo de unidades"
+}
+```
