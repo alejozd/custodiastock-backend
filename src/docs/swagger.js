@@ -121,45 +121,72 @@ const options = {
         },
         DeliveryRequest: {
           type: "object",
-          required: ["productId", "quantity", "deliveredById", "receivedById", "signatureImage"],
+          required: ["items", "deliveredById", "receivedById", "signatureImage", "deliveryDate"],
           properties: {
-            productId: { type: "integer", example: 1 },
-            quantity: { type: "integer", example: 3 },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  productId: { type: "integer", example: 1 },
+                  quantity: { type: "integer", example: 3 },
+                },
+              },
+            },
             deliveredById: { type: "integer", example: 1 },
             receivedById: { type: "integer", example: 2 },
             signatureImage: { type: "string", example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..." },
+            deliveryDate: { type: "string", format: "date", example: "2025-05-20" },
           },
         },
         DeliveryResponse: {
           type: "object",
           properties: {
             id: { type: "integer", example: 1 },
+            documentNumber: { type: "string", example: "ENT-000001" },
             status: { type: "string", example: "ACTIVE" },
-            productId: { type: "integer", example: 1 },
-            quantity: { type: "integer", example: 3 },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "integer", example: 1 },
+                  productId: { type: "integer", example: 1 },
+                  quantity: { type: "integer", example: 3 },
+                  product: {
+                    type: "object",
+                    properties: {
+                      id: { type: "integer", example: 1 },
+                      name: { type: "string", example: "Lavamanos Delta" },
+                      reference: { type: "string", example: "LVM-001" },
+                      active: { type: "boolean", example: true },
+                    },
+                  },
+                },
+              },
+            },
             deliveredById: { type: "integer", example: 1 },
             receivedById: { type: "integer", example: 2 },
             signatureImage: { type: "string", example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..." },
             createdAt: { type: "string", format: "date-time", example: "2026-03-06T04:25:24.971Z" },
             deletedAt: { type: "string", format: "date-time", nullable: true, example: null },
-            product: {
-              type: "object",
-              properties: {
-                id: { type: "integer", example: 1 },
-                name: { type: "string", example: "Lavamanos Delta" },
-                reference: { type: "string", example: "LVM-001" },
-                active: { type: "boolean", example: true },
-              },
-            },
           },
         },
         EntryRequest: {
           type: "object",
-          required: ["documentNumber", "productId", "quantity", "userId", "entryDate"],
+          required: ["documentNumber", "items", "userId", "entryDate"],
           properties: {
             documentNumber: { type: "string", example: "ENTR-000001" },
-            productId: { type: "integer", example: 1 },
-            quantity: { type: "integer", example: 10 },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  productId: { type: "integer", example: 1 },
+                  quantity: { type: "integer", example: 10 },
+                },
+              },
+            },
             userId: { type: "integer", example: 1 },
             entryDate: { type: "string", format: "date", example: "2025-05-20" },
           },
@@ -170,21 +197,30 @@ const options = {
             id: { type: "integer", example: 1 },
             documentNumber: { type: "string", example: "ENTR-000001" },
             status: { type: "string", example: "ACTIVE" },
-            productId: { type: "integer", example: 1 },
-            quantity: { type: "integer", example: 10 },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "integer", example: 1 },
+                  productId: { type: "integer", example: 1 },
+                  quantity: { type: "integer", example: 10 },
+                  product: {
+                    type: "object",
+                    properties: {
+                      id: { type: "integer", example: 1 },
+                      name: { type: "string", example: "Lavamanos Delta" },
+                      reference: { type: "string", example: "LVM-001" },
+                      active: { type: "boolean", example: true },
+                    },
+                  },
+                },
+              },
+            },
             userId: { type: "integer", example: 1 },
             entryDate: { type: "string", format: "date-time", example: "2025-05-20T00:00:00.000Z" },
             createdAt: { type: "string", format: "date-time", example: "2025-05-20T10:00:00.000Z" },
             deletedAt: { type: "string", format: "date-time", nullable: true, example: null },
-            product: {
-              type: "object",
-              properties: {
-                id: { type: "integer", example: 1 },
-                name: { type: "string", example: "Lavamanos Delta" },
-                reference: { type: "string", example: "LVM-001" },
-                active: { type: "boolean", example: true },
-              },
-            },
             createdBy: {
               type: "object",
               properties: {

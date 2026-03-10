@@ -58,14 +58,16 @@ const deliveryInclude = {
 };
 
 const mapDeliveryResponse = (delivery) => {
-  const firstItem = delivery.items?.[0];
-
   return {
     id: delivery.id,
     documentNumber: delivery.documentNumber,
     status: delivery.status,
-    productId: firstItem?.productId ?? null,
-    quantity: firstItem?.quantity ?? null,
+    items: (delivery.items || []).map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      quantity: item.quantity,
+      product: item.product,
+    })),
     deliveredById: delivery.deliveredById,
     receivedById: delivery.receivedById,
     signatureImage: delivery.signatureImage,
@@ -77,7 +79,6 @@ const mapDeliveryResponse = (delivery) => {
       : null,
     createdAt: delivery.createdAt ? delivery.createdAt.toISOString() : null,
     deletedAt: delivery.deletedAt,
-    product: firstItem?.product ?? null,
     deliveredBy: delivery.deliveredBy,
     receivedBy: delivery.receivedBy,
     canceledBy: delivery.canceledBy,
@@ -103,8 +104,7 @@ const getActiveDeliveryEntityById = async (id) => {
 export const createDelivery = async (payload) => {
   const requiredFields = [
     "documentNumber",
-    "productId",
-    "quantity",
+    "items",
     "deliveredById",
     "receivedById",
     "signatureImage",
@@ -116,13 +116,29 @@ export const createDelivery = async (payload) => {
     throw new ApiError(400, "Missing required delivery fields", { missing });
   }
 
-  if (payload.quantity <= 0) {
-    throw new ApiError(400, "Quantity must be greater than 0");
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    throw new ApiError(400, "Items must be a non-empty array");
   }
 
-  const [product, deliveredBy, receivedBy] = await Promise.all([
-    prisma.product.findFirst({
-      where: { id: payload.productId, deletedAt: null },
+  for (const item of payload.items) {
+    if (!item.productId || !item.quantity || item.quantity <= 0) {
+      throw new ApiError(
+        400,
+        "Each item must have a valid productId and quantity greater than 0",
+      );
+    }
+  }
+
+  const productIds = payload.items.map((i) => i.productId);
+  const uniqueProductIds = [...new Set(productIds)];
+
+  const [products, deliveredBy, receivedBy] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        id: { in: uniqueProductIds },
+        deletedAt: null,
+        active: true,
+      },
     }),
     prisma.user.findFirst({
       where: { id: payload.deliveredById, deletedAt: null },
@@ -132,8 +148,11 @@ export const createDelivery = async (payload) => {
     }),
   ]);
 
-  if (!product || !product.active) {
-    throw new ApiError(400, "Product does not exist or is inactive");
+  if (products.length !== uniqueProductIds.length) {
+    throw new ApiError(
+      400,
+      "One or more products do not exist or are inactive",
+    );
   }
 
   if (!deliveredBy || !deliveredBy.active) {
@@ -153,10 +172,10 @@ export const createDelivery = async (payload) => {
         signatureImage: payload.signatureImage,
         deliveryDate: new Date(payload.deliveryDate),
         items: {
-          create: {
-            productId: payload.productId,
-            quantity: payload.quantity,
-          },
+          create: payload.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
         },
       },
       include: deliveryInclude,

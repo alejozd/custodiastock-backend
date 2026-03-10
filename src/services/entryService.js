@@ -48,24 +48,23 @@ const entryInclude = {
 };
 
 const mapEntryResponse = (entry) => {
-  const firstItem = entry.items?.[0];
-
   return {
     id: entry.id,
     documentNumber: entry.documentNumber,
     status: entry.status,
-    productId: firstItem?.productId ?? null,
-    quantity: firstItem?.quantity ?? null,
+    items: (entry.items || []).map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      quantity: item.quantity,
+      product: item.product,
+    })),
     userId: entry.userId,
     cancelReason: entry.cancelReason,
     canceledAt: entry.canceledAt,
     canceledById: entry.canceledById,
-    entryDate: entry.entryDate
-      ? entry.entryDate.toISOString()
-      : null,
+    entryDate: entry.entryDate ? entry.entryDate.toISOString() : null,
     createdAt: entry.createdAt ? entry.createdAt.toISOString() : null,
     deletedAt: entry.deletedAt,
-    product: firstItem?.product ?? null,
     createdBy: entry.createdBy,
     canceledBy: entry.canceledBy,
   };
@@ -90,8 +89,7 @@ const getActiveEntryEntityById = async (id) => {
 export const createEntry = async (payload) => {
   const requiredFields = [
     "documentNumber",
-    "productId",
-    "quantity",
+    "items",
     "userId",
     "entryDate",
   ];
@@ -101,21 +99,40 @@ export const createEntry = async (payload) => {
     throw new ApiError(400, "Missing required entry fields", { missing });
   }
 
-  if (payload.quantity <= 0) {
-    throw new ApiError(400, "Quantity must be greater than 0");
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    throw new ApiError(400, "Items must be a non-empty array");
   }
 
-  const [product, createdBy] = await Promise.all([
-    prisma.product.findFirst({
-      where: { id: payload.productId, deletedAt: null },
+  for (const item of payload.items) {
+    if (!item.productId || !item.quantity || item.quantity <= 0) {
+      throw new ApiError(
+        400,
+        "Each item must have a valid productId and quantity greater than 0",
+      );
+    }
+  }
+
+  const productIds = payload.items.map((i) => i.productId);
+  const uniqueProductIds = [...new Set(productIds)];
+
+  const [products, createdBy] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        id: { in: uniqueProductIds },
+        deletedAt: null,
+        active: true,
+      },
     }),
     prisma.user.findFirst({
       where: { id: payload.userId, deletedAt: null },
     }),
   ]);
 
-  if (!product || !product.active) {
-    throw new ApiError(400, "Product does not exist or is inactive");
+  if (products.length !== uniqueProductIds.length) {
+    throw new ApiError(
+      400,
+      "One or more products do not exist or are inactive",
+    );
   }
 
   if (!createdBy || !createdBy.active) {
@@ -129,10 +146,10 @@ export const createEntry = async (payload) => {
         userId: payload.userId,
         entryDate: new Date(payload.entryDate),
         items: {
-          create: {
-            productId: payload.productId,
-            quantity: payload.quantity,
-          },
+          create: payload.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
         },
       },
       include: entryInclude,
