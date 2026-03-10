@@ -75,6 +75,28 @@ const options = {
             deletedAt: { type: "string", format: "date-time", nullable: true, example: null },
           },
         },
+        StockReportResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            name: { type: "string", example: "Lavamanos Delta" },
+            reference: { type: "string", example: "LVM-001" },
+            totalEntries: { type: "integer", example: 10 },
+            totalDeliveries: { type: "integer", example: 3 },
+            stock: { type: "integer", example: 7 },
+          },
+        },
+        ProductMovementResponse: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["ENTRY", "DELIVERY"], example: "ENTRY" },
+            documentNumber: { type: "string", example: "ENTR-000001" },
+            date: { type: "string", format: "date-time", example: "2025-05-20T10:00:00.000Z" },
+            quantity: { type: "integer", example: 10 },
+            user: { type: "string", example: "Diego" },
+            details: { type: "string", example: "Entrada de producto" },
+          },
+        },
         ProductRequest: {
           type: "object",
           required: ["name", "reference"],
@@ -330,7 +352,79 @@ const options = {
           },
         },
       },
-
+      "/api/products/stock-report": {
+        get: {
+          tags: ["Products"],
+          summary: "Obtener reporte de stock por producto (Solo ADMIN)",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "startDate", in: "query", schema: { type: "string", format: "date" } },
+            { name: "endDate", in: "query", schema: { type: "string", format: "date" } },
+          ],
+          responses: {
+            "200": {
+              description: "Reporte de stock",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/StockReportResponse" },
+                  },
+                },
+              },
+            },
+            "403": {
+              description: "Prohibido: Solo administradores pueden acceder",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/products/{id}/movements": {
+        get: {
+          tags: ["Products"],
+          summary: "Obtener detalle de movimientos de un producto (Solo ADMIN)",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "integer" } },
+            { name: "startDate", in: "query", schema: { type: "string", format: "date" } },
+            { name: "endDate", in: "query", schema: { type: "string", format: "date" } },
+          ],
+          responses: {
+            "200": {
+              description: "Lista de movimientos",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/ProductMovementResponse" },
+                  },
+                },
+              },
+            },
+            "401": {
+              description: "No autorizado",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            "403": {
+              description: "Prohibido: Solo administradores pueden acceder",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/products/import": {
         post: {
           tags: ["Products"],
