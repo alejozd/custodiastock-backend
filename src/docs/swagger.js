@@ -131,6 +131,48 @@ const options = {
             },
           },
         },
+        EntryRequest: {
+          type: "object",
+          required: ["documentNumber", "productId", "quantity", "userId", "entryDate"],
+          properties: {
+            documentNumber: { type: "string", example: "ENTR-000001" },
+            productId: { type: "integer", example: 1 },
+            quantity: { type: "integer", example: 10 },
+            userId: { type: "integer", example: 1 },
+            entryDate: { type: "string", format: "date", example: "2025-05-20" },
+          },
+        },
+        EntryResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            documentNumber: { type: "string", example: "ENTR-000001" },
+            status: { type: "string", example: "ACTIVE" },
+            productId: { type: "integer", example: 1 },
+            quantity: { type: "integer", example: 10 },
+            userId: { type: "integer", example: 1 },
+            entryDate: { type: "string", format: "date-time", example: "2025-05-20T00:00:00.000Z" },
+            createdAt: { type: "string", format: "date-time", example: "2025-05-20T10:00:00.000Z" },
+            deletedAt: { type: "string", format: "date-time", nullable: true, example: null },
+            product: {
+              type: "object",
+              properties: {
+                id: { type: "integer", example: 1 },
+                name: { type: "string", example: "Lavamanos Delta" },
+                reference: { type: "string", example: "LVM-001" },
+                active: { type: "boolean", example: true },
+              },
+            },
+            createdBy: {
+              type: "object",
+              properties: {
+                id: { type: "integer", example: 1 },
+                username: { type: "string", example: "diego" },
+                fullName: { type: "string", example: "Diego" },
+              },
+            },
+          },
+        },
 
         ProductImportResponse: {
           type: "object",
@@ -363,6 +405,124 @@ const options = {
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/DeliveryResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/entries": {
+        get: {
+          tags: ["Entries"],
+          summary: "Listar entradas",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "startDate", in: "query", schema: { type: "string", format: "date" } },
+            { name: "endDate", in: "query", schema: { type: "string", format: "date" } },
+          ],
+          responses: {
+            "200": {
+              description: "Lista de entradas",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/EntryResponse" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ["Entries"],
+          summary: "Crear entrada",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EntryRequest" },
+              },
+            },
+          },
+          responses: {
+            "201": {
+              description: "Entrada creada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/EntryResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/entries/{id}": {
+        get: {
+          tags: ["Entries"],
+          summary: "Ver entrada por ID",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "200": {
+              description: "Entrada encontrada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/EntryResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/entries/{id}/cancel": {
+        patch: {
+          tags: ["Entries"],
+          summary: "Anular entrada",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["adminUserId", "reason"],
+                  properties: {
+                    adminUserId: { type: "integer" },
+                    reason: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Entrada anulada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/EntryResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/entries/next-number": {
+        get: {
+          tags: ["Entries"],
+          summary: "Obtener siguiente número de documento",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            "200": {
+              description: "Siguiente número",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { nextNumber: { type: "string", example: "ENTR-000001" } },
+                  },
                 },
               },
             },

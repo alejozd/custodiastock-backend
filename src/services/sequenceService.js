@@ -13,10 +13,17 @@ export const getNextNumber = async (name) => {
 
     if (!sequence) {
       // Initialize sequence if it doesn't exist
+      let prefix = "";
+      if (name === "delivery" || name === "ENTREGA") {
+        prefix = "ENT-";
+      } else if (name === "entry" || name === "ENTRADA") {
+        prefix = "ENTR-";
+      }
+
       sequence = await tx.sequence.create({
         data: {
           name,
-          prefix: name === "delivery" ? "ENT-" : "",
+          prefix,
           nextNumber: 1,
         },
       });
@@ -46,7 +53,12 @@ export const peekNextNumber = async (name) => {
 
   if (!sequence) {
     // If it doesn't exist, we assume it starts at 1
-    const prefix = name === "delivery" ? "ENT-" : "";
+    let prefix = "";
+    if (name === "delivery" || name === "ENTREGA") {
+      prefix = "ENT-";
+    } else if (name === "entry" || name === "ENTRADA") {
+      prefix = "ENTR-";
+    }
     return `${prefix}000001`;
   }
 
