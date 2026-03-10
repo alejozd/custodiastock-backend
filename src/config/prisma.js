@@ -13,10 +13,24 @@ const modelAliases = {
 
 const prisma = new Proxy(prismaClient, {
   get(target, prop, receiver) {
-    if (typeof prop === "string" && modelAliases[prop]) {
-      for (const candidate of modelAliases[prop]) {
-        if (target[candidate]) {
-          return target[candidate];
+    if (typeof prop === "string") {
+      // Check if prop is a canonical name
+      if (modelAliases[prop]) {
+        for (const candidate of modelAliases[prop]) {
+          if (target[candidate]) {
+            return target[candidate];
+          }
+        }
+      }
+
+      // Check if prop is an alias
+      for (const [canonical, aliases] of Object.entries(modelAliases)) {
+        if (aliases.includes(prop)) {
+          for (const candidate of aliases) {
+            if (target[candidate]) {
+              return target[candidate];
+            }
+          }
         }
       }
     }
