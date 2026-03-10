@@ -326,3 +326,99 @@ export const getProductStockReport = async (filters = {}) => {
     };
   });
 };
+
+export const getProductMovements = async (productId, filters = {}) => {
+  const { startDate, endDate } = filters;
+
+  const entryWhere = {
+    productId,
+    deletedAt: null,
+    entry: {
+      status: "ACTIVE",
+      deletedAt: null,
+    },
+  };
+
+  const deliveryWhere = {
+    productId,
+    deletedAt: null,
+    delivery: {
+      status: "ACTIVE",
+      deletedAt: null,
+    },
+  };
+
+  if (startDate || endDate) {
+    const entryDateFilter = {};
+    const deliveryDateFilter = {};
+
+    if (startDate) {
+      const start = dayjs.tz(startDate, COLOMBIA_TZ).startOf("day").toDate();
+      entryDateFilter.gte = start;
+      deliveryDateFilter.gte = start;
+    }
+    if (endDate) {
+      const end = dayjs.tz(endDate, COLOMBIA_TZ).endOf("day").toDate();
+      entryDateFilter.lte = end;
+      deliveryDateFilter.lte = end;
+    }
+
+    entryWhere.entry.entryDate = entryDateFilter;
+    deliveryWhere.delivery.deliveryDate = deliveryDateFilter;
+  }
+
+  const [entryItems, deliveryItems] = await Promise.all([
+    prisma.entryItem.findMany({
+      where: entryWhere,
+      include: {
+        entry: {
+          select: {
+            documentNumber: true,
+            entryDate: true,
+            createdBy: {
+              select: { fullName: true }
+            }
+          }
+        }
+      }
+    }),
+    prisma.deliveryItem.findMany({
+      where: deliveryWhere,
+      include: {
+        delivery: {
+          select: {
+            documentNumber: true,
+            deliveryDate: true,
+            deliveredBy: {
+              select: { fullName: true }
+            },
+            receivedBy: {
+              select: { fullName: true }
+            }
+          }
+        }
+      }
+    })
+  ]);
+
+  const movements = [
+    ...entryItems.map(item => ({
+      type: "ENTRY",
+      documentNumber: item.entry.documentNumber,
+      date: item.entry.entryDate,
+      quantity: item.quantity,
+      user: item.entry.createdBy.fullName,
+      details: "Entrada de producto"
+    })),
+    ...deliveryItems.map(item => ({
+      type: "DELIVERY",
+      documentNumber: item.delivery.documentNumber,
+      date: item.delivery.deliveryDate,
+      quantity: item.quantity,
+      user: item.delivery.deliveredBy.fullName,
+      details: `Entregado a: ${item.delivery.receivedBy.fullName}`
+    }))
+  ];
+
+  return movements.sort((a, b) => new Date(b.date) - new Date(a.date));
+};

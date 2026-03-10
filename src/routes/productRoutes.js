@@ -5,6 +5,7 @@ import {
   getProductByIdController,
   getProductsController,
   getProductStockReportController,
+  getProductMovementsController,
   updateProductController,
 } from "../controllers/productController.js";
 import { importProductsController } from "../controllers/productImportController.js";
@@ -21,6 +22,11 @@ router.get(
   "/stock-report",
   roleMiddleware(["ADMIN"]),
   asyncHandler(getProductStockReportController)
+);
+router.get(
+  "/:id/movements",
+  roleMiddleware(["ADMIN"]),
+  asyncHandler(getProductMovementsController)
 );
 router.get("/:id", asyncHandler(getProductByIdController));
 router.put("/:id", asyncHandler(updateProductController));
