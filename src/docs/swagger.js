@@ -75,6 +75,17 @@ const options = {
             deletedAt: { type: "string", format: "date-time", nullable: true, example: null },
           },
         },
+        StockReportResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            name: { type: "string", example: "Lavamanos Delta" },
+            reference: { type: "string", example: "LVM-001" },
+            totalEntries: { type: "integer", example: 10 },
+            totalDeliveries: { type: "integer", example: 3 },
+            stock: { type: "integer", example: 7 },
+          },
+        },
         ProductRequest: {
           type: "object",
           required: ["name", "reference"],
@@ -330,7 +341,38 @@ const options = {
           },
         },
       },
-
+      "/api/products/stock-report": {
+        get: {
+          tags: ["Products"],
+          summary: "Obtener reporte de stock por producto (Solo ADMIN)",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "startDate", in: "query", schema: { type: "string", format: "date" } },
+            { name: "endDate", in: "query", schema: { type: "string", format: "date" } },
+          ],
+          responses: {
+            "200": {
+              description: "Reporte de stock",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/StockReportResponse" },
+                  },
+                },
+              },
+            },
+            "403": {
+              description: "Prohibido: Solo administradores pueden acceder",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/products/import": {
         post: {
           tags: ["Products"],

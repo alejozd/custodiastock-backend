@@ -111,6 +111,9 @@ Allowed roles:
 ### Soft delete product
 `DELETE /products/1`
 
+### Stock Report (ADMIN only)
+`GET /products/stock-report`
+`GET /products/stock-report?startDate=2025-05-01&endDate=2025-05-31`
 
 ### Import products from Excel (.xlsx)
 `POST /products/import`
