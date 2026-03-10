@@ -5,7 +5,27 @@ const prisma = new PrismaClient();
 const username = process.env.ADMIN_USER;
 const password = process.env.ADMIN_PASSWORD;
 
+async function ensureSequences() {
+  const sequences = [
+    { name: "ENTREGA", prefix: "ENT-", nextNumber: 1 },
+    { name: "ENTRADA", prefix: "ENTR-", nextNumber: 1 },
+  ];
+
+  for (const seq of sequences) {
+    const existing = await prisma.sequence.findUnique({
+      where: { name: seq.name },
+    });
+
+    if (!existing) {
+      await prisma.sequence.create({ data: seq });
+      console.log(`Secuencia '${seq.name}' creada.`);
+    }
+  }
+}
+
 export async function ensureAdminUser() {
+  await ensureSequences();
+
   const existing = await prisma.user.findFirst({
     where: {
       username: username,

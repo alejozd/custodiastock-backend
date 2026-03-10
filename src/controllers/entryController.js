@@ -12,7 +12,11 @@ export const getNextNumberController = async (req, res) => {
 };
 
 export const createEntryController = async (req, res) => {
-  const entry = await createEntry(req.body);
+  const payload = {
+    ...req.body,
+    userId: req.user.id,
+  };
+  const entry = await createEntry(payload);
   res.status(201).json(entry);
 };
 
@@ -28,6 +32,10 @@ export const getEntryByIdController = async (req, res) => {
 };
 
 export const cancelEntryController = async (req, res) => {
-  const entry = await cancelEntry(Number(req.params.id), req.body);
+  const payload = {
+    ...req.body,
+    adminUserId: req.user.id,
+  };
+  const entry = await cancelEntry(Number(req.params.id), payload);
   res.json(entry);
 };
