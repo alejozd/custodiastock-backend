@@ -1,6 +1,14 @@
 import XLSX from "xlsx";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+// Configuración de Day.js para manejar Colombia
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const COLOMBIA_TZ = "America/Bogota";
 
 const mapProductResponse = (product) => ({
   id: product.id,
@@ -231,5 +239,90 @@ export const deleteProduct = async (id) => {
       deletedAt: new Date(),
       active: false,
     },
+  });
+};
+
+export const getProductStockReport = async (filters = {}) => {
+  const { startDate, endDate } = filters;
+
+  const entryWhere = {
+    deletedAt: null,
+    entry: {
+      status: "ACTIVE",
+      deletedAt: null,
+    },
+  };
+
+  const deliveryWhere = {
+    deletedAt: null,
+    delivery: {
+      status: "ACTIVE",
+      deletedAt: null,
+    },
+  };
+
+  if (startDate || endDate) {
+    const entryDateFilter = {};
+    const deliveryDateFilter = {};
+
+    if (startDate) {
+      const start = dayjs.tz(startDate, COLOMBIA_TZ).startOf("day").toDate();
+      entryDateFilter.gte = start;
+      deliveryDateFilter.gte = start;
+    }
+    if (endDate) {
+      const end = dayjs.tz(endDate, COLOMBIA_TZ).endOf("day").toDate();
+      entryDateFilter.lte = end;
+      deliveryDateFilter.lte = end;
+    }
+
+    entryWhere.entry.entryDate = entryDateFilter;
+    deliveryWhere.delivery.deliveryDate = deliveryDateFilter;
+  }
+
+  // Get all active products first to ensure we show products even with 0 stock
+  const products = await prisma.product.findMany({
+    where: { deletedAt: null },
+    select: {
+      id: true,
+      name: true,
+      reference: true,
+    },
+  });
+
+  const [entriesByProduct, deliveriesByProduct] = await Promise.all([
+    prisma.entryItem.groupBy({
+      by: ["productId"],
+      _sum: { quantity: true },
+      where: entryWhere,
+    }),
+    prisma.deliveryItem.groupBy({
+      by: ["productId"],
+      _sum: { quantity: true },
+      where: deliveryWhere,
+    }),
+  ]);
+
+  const entriesMap = entriesByProduct.reduce((acc, curr) => {
+    acc[curr.productId] = curr._sum.quantity || 0;
+    return acc;
+  }, {});
+
+  const deliveriesMap = deliveriesByProduct.reduce((acc, curr) => {
+    acc[curr.productId] = curr._sum.quantity || 0;
+    return acc;
+  }, {});
+
+  return products.map((product) => {
+    const totalEntries = entriesMap[product.id] || 0;
+    const totalDeliveries = deliveriesMap[product.id] || 0;
+    return {
+      id: product.id,
+      name: product.name,
+      reference: product.reference,
+      totalEntries,
+      totalDeliveries,
+      stock: totalEntries - totalDeliveries,
+    };
   });
 };

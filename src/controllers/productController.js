@@ -3,6 +3,7 @@ import {
   deleteProduct,
   getProductById,
   getProducts,
+  getProductStockReport,
   updateProduct,
 } from "../services/productService.js";
 
@@ -29,4 +30,10 @@ export const updateProductController = async (req, res) => {
 export const deleteProductController = async (req, res) => {
   await deleteProduct(Number(req.params.id));
   res.status(204).send();
+};
+
+export const getProductStockReportController = async (req, res) => {
+  const { startDate, endDate } = req.query;
+  const report = await getProductStockReport({ startDate, endDate });
+  res.json(report);
 };
