@@ -41,7 +41,7 @@ npm run dev
 
 ```json
 {
-  "email": "carlos@empresa.com",
+  "username": "carlos@empresa.com",
   "password": "Secure123!"
 }
 ```
