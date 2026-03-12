@@ -231,7 +231,24 @@ const options = {
             },
           },
         },
-
+        SequenceRequest: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string", example: "ENTREGA" },
+            prefix: { type: "string", example: "ENT-" },
+            nextNumber: { type: "integer", example: 1 },
+          },
+        },
+        SequenceResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            name: { type: "string", example: "ENTREGA" },
+            prefix: { type: "string", example: "ENT-" },
+            nextNumber: { type: "integer", example: 1 },
+          },
+        },
         ProductImportResponse: {
           type: "object",
           properties: {
@@ -311,14 +328,6 @@ const options = {
                 },
               },
             },
-            "401": {
-              description: "No autorizado",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/ErrorResponse" },
-                },
-              },
-            },
           },
         },
         post: {
@@ -341,6 +350,59 @@ const options = {
                   schema: { $ref: "#/components/schemas/UserResponse" },
                 },
               },
+            },
+          },
+        },
+      },
+      "/api/users/{id}": {
+        get: {
+          tags: ["Users"],
+          summary: "Ver usuario por ID",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "200": {
+              description: "Usuario encontrado",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/UserResponse" },
+                },
+              },
+            },
+          },
+        },
+        put: {
+          tags: ["Users"],
+          summary: "Actualizar usuario",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UserRequest" },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Usuario actualizado",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/UserResponse" },
+                },
+              },
+            },
+          },
+        },
+        delete: {
+          tags: ["Users"],
+          summary: "Eliminar usuario (soft delete)",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "204": {
+              description: "Usuario eliminado",
             },
           },
         },
@@ -388,6 +450,59 @@ const options = {
           },
         },
       },
+      "/api/products/{id}": {
+        get: {
+          tags: ["Products"],
+          summary: "Ver producto por ID",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "200": {
+              description: "Producto encontrado",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ProductResponse" },
+                },
+              },
+            },
+          },
+        },
+        put: {
+          tags: ["Products"],
+          summary: "Actualizar producto",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ProductRequest" },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Producto actualizado",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ProductResponse" },
+                },
+              },
+            },
+          },
+        },
+        delete: {
+          tags: ["Products"],
+          summary: "Eliminar producto (soft delete)",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "204": {
+              description: "Producto eliminado",
+            },
+          },
+        },
+      },
       "/api/products/stock-report": {
         get: {
           tags: ["Products"],
@@ -406,14 +521,6 @@ const options = {
                     type: "array",
                     items: { $ref: "#/components/schemas/StockReportResponse" },
                   },
-                },
-              },
-            },
-            "403": {
-              description: "Prohibido: Solo administradores pueden acceder",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/ErrorResponse" },
                 },
               },
             },
@@ -442,22 +549,6 @@ const options = {
                 },
               },
             },
-            "401": {
-              description: "No autorizado",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/ErrorResponse" },
-                },
-              },
-            },
-            "403": {
-              description: "Prohibido: Solo administradores pueden acceder",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/ErrorResponse" },
-                },
-              },
-            },
           },
         },
       },
@@ -465,8 +556,6 @@ const options = {
         post: {
           tags: ["Products"],
           summary: "Importar productos masivamente desde archivo Excel (.xlsx)",
-          description:
-            "Sube un archivo .xlsx con encabezados: reference, name, description (opcional), active (opcional)",
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -479,7 +568,6 @@ const options = {
                     file: {
                       type: "string",
                       format: "binary",
-                      description: "Archivo Excel .xlsx",
                     },
                   },
                 },
@@ -503,6 +591,10 @@ const options = {
           tags: ["Deliveries"],
           summary: "Listar entregas",
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "startDate", in: "query", schema: { type: "string", format: "date" } },
+            { name: "endDate", in: "query", schema: { type: "string", format: "date" } },
+          ],
           responses: {
             "200": {
               description: "Lista de entregas",
@@ -535,6 +627,88 @@ const options = {
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/DeliveryResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/deliveries/{id}": {
+        get: {
+          tags: ["Deliveries"],
+          summary: "Ver entrega por ID",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "200": {
+              description: "Entrega encontrada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DeliveryResponse" },
+                },
+              },
+            },
+          },
+        },
+        delete: {
+          tags: ["Deliveries"],
+          summary: "Eliminar entrega (soft delete)",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "204": {
+              description: "Entrega eliminada",
+            },
+          },
+        },
+      },
+      "/api/deliveries/{id}/cancel": {
+        patch: {
+          tags: ["Deliveries"],
+          summary: "Anular entrega",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["adminUserId", "reason"],
+                  properties: {
+                    adminUserId: { type: "integer" },
+                    reason: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Entrega anulada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DeliveryResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/deliveries/next-number": {
+        get: {
+          tags: ["Deliveries"],
+          summary: "Obtener siguiente número de documento para entregas",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            "200": {
+              description: "Siguiente número",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { nextNumber: { type: "string", example: "ENT-000001" } },
+                  },
                 },
               },
             },
@@ -642,7 +816,7 @@ const options = {
       "/api/entries/next-number": {
         get: {
           tags: ["Entries"],
-          summary: "Obtener siguiente número de documento",
+          summary: "Obtener siguiente número de documento para entradas",
           security: [{ bearerAuth: [] }],
           responses: {
             "200": {
@@ -655,6 +829,102 @@ const options = {
                   },
                 },
               },
+            },
+          },
+        },
+      },
+      "/api/sequences": {
+        get: {
+          tags: ["Sequences"],
+          summary: "Listar secuencias",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            "200": {
+              description: "Lista de secuencias",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/SequenceResponse" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ["Sequences"],
+          summary: "Crear secuencia",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SequenceRequest" },
+              },
+            },
+          },
+          responses: {
+            "201": {
+              description: "Secuencia creada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/SequenceResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/sequences/{id}": {
+        get: {
+          tags: ["Sequences"],
+          summary: "Ver secuencia por ID",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "200": {
+              description: "Secuencia encontrada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/SequenceResponse" },
+                },
+              },
+            },
+          },
+        },
+        put: {
+          tags: ["Sequences"],
+          summary: "Actualizar secuencia",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SequenceRequest" },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Secuencia actualizada",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/SequenceResponse" },
+                },
+              },
+            },
+          },
+        },
+        delete: {
+          tags: ["Sequences"],
+          summary: "Eliminar secuencia",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: {
+            "204": {
+              description: "Secuencia eliminada",
             },
           },
         },

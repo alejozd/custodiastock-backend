@@ -41,8 +41,8 @@ npm run dev
 
 ```json
 {
-  "username": "carlos@empresa.com",
-  "password": "Secure123!"
+  "username": "alejo",
+  "password": "Pascal123*"
 }
 ```
 
@@ -58,15 +58,22 @@ Allowed roles:
 - `OPERATOR`
 - `ADMIN`
 
+### List users
+`GET /users`
+
+### Get user by ID
+`GET /users/1`
+
 ### Create user
 `POST /users`
 
 ```json
 {
-  "name": "Carlos Rojas",
-  "email": "carlos@empresa.com",
+  "username": "lady",
+  "fullName": "Lady Real",
+  "email": "lady@empresa.com",
   "password": "Secure123!",
-  "role": "ADMIN",
+  "role": "OPERATOR",
   "active": true
 }
 ```
@@ -85,6 +92,12 @@ Allowed roles:
 `DELETE /users/1`
 
 ## Products (Protected)
+
+### List products
+`GET /products`
+
+### Get product by ID
+`GET /products/1`
 
 ### Create product
 `POST /products`
@@ -137,16 +150,28 @@ Estructura esperada del Excel (primera fila: headers):
 
 ## Deliveries (Protected)
 
+### Get next delivery document number
+`GET /deliveries/next-number`
+
+### List deliveries
+`GET /deliveries`
+`GET /deliveries?startDate=2025-05-01&endDate=2025-05-31`
+
+### Get delivery by ID
+`GET /deliveries/1`
+
 ### Create delivery
 `POST /deliveries`
 
 ```json
 {
-  "productId": 1,
-  "quantity": 3,
+  "items": [
+    { "productId": 1, "quantity": 3 }
+  ],
   "deliveredById": 1,
   "receivedById": 2,
-  "signatureImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+  "signatureImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "deliveryDate": "2025-05-20"
 }
 ```
 
@@ -165,21 +190,8 @@ Estructura esperada del Excel (primera fila: headers):
 
 ## Entries (Protected)
 
-### Get next document number
+### Get next entry document number
 `GET /entries/next-number`
-
-### Create entry
-`POST /entries`
-
-```json
-{
-  "documentNumber": "ENTR-000001",
-  "productId": 1,
-  "quantity": 10,
-  "userId": 1,
-  "entryDate": "2025-05-20"
-}
-```
 
 ### List entries
 `GET /entries`
@@ -187,6 +199,20 @@ Estructura esperada del Excel (primera fila: headers):
 
 ### Get entry by ID
 `GET /entries/1`
+
+### Create entry
+`POST /entries`
+
+```json
+{
+  "documentNumber": "ENTR-000001",
+  "items": [
+    { "productId": 1, "quantity": 10 }
+  ],
+  "userId": 1,
+  "entryDate": "2025-05-20"
+}
+```
 
 ### Cancel entry (ADMIN only)
 `PATCH /entries/1/cancel`
@@ -197,3 +223,35 @@ Estructura esperada del Excel (primera fila: headers):
   "reason": "Error en el conteo de unidades"
 }
 ```
+
+## Sequences (Protected - ADMIN)
+
+### List sequences
+`GET /sequences`
+
+### Get sequence by ID
+`GET /sequences/1`
+
+### Create sequence
+`POST /sequences`
+
+```json
+{
+  "name": "NUEVA_SECUENCIA",
+  "prefix": "NS-",
+  "nextNumber": 1
+}
+```
+
+### Update sequence
+`PUT /sequences/1`
+
+```json
+{
+  "prefix": "ABC-",
+  "nextNumber": 100
+}
+```
+
+### Delete sequence
+`DELETE /sequences/1`
