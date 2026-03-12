@@ -177,6 +177,7 @@ const options = {
           required: ["documentNumber", "items", "userId", "entryDate"],
           properties: {
             documentNumber: { type: "string", example: "ENTR-000001" },
+            sourceDocument: { type: "string", example: "FAC-12345", description: "Número de factura del proveedor" },
             items: {
               type: "array",
               items: {
@@ -196,6 +197,7 @@ const options = {
           properties: {
             id: { type: "integer", example: 1 },
             documentNumber: { type: "string", example: "ENTR-000001" },
+            sourceDocument: { type: "string", example: "FAC-12345", nullable: true },
             status: { type: "string", example: "ACTIVE" },
             items: {
               type: "array",

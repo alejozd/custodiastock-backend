@@ -174,9 +174,14 @@ Estructura esperada del Excel (primera fila: headers):
 ```json
 {
   "documentNumber": "ENTR-000001",
-  "productId": 1,
-  "quantity": 10,
+  "sourceDocument": "FAC-12345",
   "userId": 1,
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 10
+    }
+  ],
   "entryDate": "2025-05-20"
 }
 ```
