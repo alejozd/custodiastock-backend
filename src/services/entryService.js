@@ -144,7 +144,7 @@ export const createEntry = async (payload) => {
       data: {
         documentNumber: payload.documentNumber,
         userId: payload.userId,
-        entryDate: new Date(payload.entryDate),
+        entryDate: dayjs.tz(payload.entryDate, COLOMBIA_TZ).startOf("day").toDate(),
         items: {
           create: payload.items.map((item) => ({
             productId: item.productId,

@@ -170,7 +170,7 @@ export const createDelivery = async (payload) => {
         deliveredById: payload.deliveredById,
         receivedById: payload.receivedById,
         signatureImage: payload.signatureImage,
-        deliveryDate: new Date(payload.deliveryDate),
+        deliveryDate: dayjs.tz(payload.deliveryDate, COLOMBIA_TZ).startOf("day").toDate(),
         items: {
           create: payload.items.map((item) => ({
             productId: item.productId,
@@ -216,11 +216,6 @@ export const getDeliveries = async (filters = {}) => {
         .toDate();
     }
     if (endDate) {
-      const end = new Date(endDate);
-      // Si la fecha viene solo como YYYY-MM-DD (10 caracteres)
-      if (endDate.length <= 10) {
-        end.setHours(23, 59, 59, 999);
-      }
       where.deliveryDate.lte = dayjs
         .tz(endDate, COLOMBIA_TZ)
         .endOf("day")

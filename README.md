@@ -1,4 +1,4 @@
-# Derecho de Petición Sabaneta Mod - CustodiaStock
+# CustodiaStock
 
 Sistema web para **registro y trazabilidad de entregas de productos en custodia** dentro de una empresa.
 
