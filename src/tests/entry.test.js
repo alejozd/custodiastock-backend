@@ -35,6 +35,8 @@ describe("Entry Service with sourceDocument", () => {
   });
 
   afterAll(async () => {
+    await prisma.deliveryItem.deleteMany();
+    await prisma.delivery.deleteMany();
     await prisma.entryItem.deleteMany();
     await prisma.entry.deleteMany();
     await prisma.product.deleteMany();
