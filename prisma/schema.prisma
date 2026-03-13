@@ -95,6 +95,7 @@ model DeliveryItem {
 model Entry {
   id             Int         @id @default(autoincrement())
   documentNumber String      @unique @map("numeroDocumento") @db.VarChar(20)
+  sourceDocument String?     @map("documentoOrigen") @db.VarChar(50)
   userId         Int         @map("usuarioId")
   status         EntryStatus @default(ACTIVE) @map("estado")
   canceledAt     DateTime?   @map("anuladoEn")

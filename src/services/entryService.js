@@ -51,6 +51,7 @@ const mapEntryResponse = (entry) => {
   return {
     id: entry.id,
     documentNumber: entry.documentNumber,
+    sourceDocument: entry.sourceDocument,
     status: entry.status,
     items: (entry.items || []).map((item) => ({
       id: item.id,
@@ -143,6 +144,7 @@ export const createEntry = async (payload) => {
     const entry = await prisma.entry.create({
       data: {
         documentNumber: payload.documentNumber,
+        sourceDocument: payload.sourceDocument,
         userId: payload.userId,
         entryDate: new Date(payload.entryDate),
         items: {
