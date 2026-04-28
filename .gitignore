@@ -1,6 +1,1 @@
-node_modules
-.env
-dist
-build
-.vscode
-/src/generated/prisma
+Nothing should be ignored based on the provided file changes. The only added file is API_DOCUMENTATION.md, which is a documentation file and should not be ignored.
