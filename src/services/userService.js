@@ -83,9 +83,13 @@ export const getUserById = async (id) => {
   return mapUserResponse(user);
 };
 
-export const updateUser = async (id, payload) => {
+export const updateUser = async (id, payload, authenticatedUser) => {
   assertUserPayload(payload, true);
-  await getActiveUserEntityById(id);
+  const targetUser = await getActiveUserEntityById(id);
+
+  if (targetUser.username === "alejo" && authenticatedUser?.username !== "alejo") {
+    throw new ApiError(403, "No tiene permisos para modificar este usuario.");
+  }
 
   const data = {
     ...(payload.username !== undefined && { username: payload.username }),
