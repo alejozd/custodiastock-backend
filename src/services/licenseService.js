@@ -2,9 +2,11 @@ import crypto from "crypto";
 import os from "os";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
+import pkg from "../../package.json" with { type: "json" };
 
-const DEMO_DAYS = 7;
 const OFFLINE_GRACE_DAYS = 7;
+const APP_NAME = "CustodiaStock";
+const APP_VERSION = pkg.version || "unknown";
 
 const addDays = (date, days) => {
   const result = new Date(date);
@@ -25,106 +27,112 @@ const getTeamFingerprint = () => {
   return crypto.createHash("sha256").update(payload).digest("hex");
 };
 
-const getCurrentLicense = async () => {
-  const installationHash = getTeamFingerprint();
-  let license = await prisma.license.findUnique({ where: { installationHash } });
+const buildCentralPayload = (nit, installationHash) => ({
+  nit,
+  app: APP_NAME,
+  instalacion_hash: installationHash,
+  version_app: APP_VERSION,
+});
 
-  if (!license) {
-    const now = new Date();
-    const expirationDate = addDays(now, DEMO_DAYS);
-    license = await prisma.license.create({
-      data: {
-        nit: "PENDING",
-        installationHash,
-        status: "DEMO",
-        licenseType: "DEMO",
-        activationDate: now,
-        expirationDate,
-        lastValidation: now,
-        offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
-      },
-    });
+const assertServerUrl = () => {
+  const baseUrl = process.env.LICENSE_SERVER_URL;
+  if (!baseUrl) {
+    throw new ApiError(500, "LICENSE_SERVER_URL is not configured");
   }
-
-  return license;
+  return baseUrl.replace(/\/$/, "");
 };
 
-const evaluateLicense = async (license) => {
+const mapRemoteToLocal = (data, fallback = {}) => {
   const now = new Date();
-  let nextStatus = license.status;
+  return {
+    nit: data?.nit || fallback.nit || "PENDING",
+    status: data?.status || fallback.status || "DEMO",
+    licenseType: data?.licenseType || fallback.licenseType || "DEMO",
+    activationDate: data?.activationDate ? new Date(data.activationDate) : fallback.activationDate || now,
+    expirationDate: data?.expirationDate ? new Date(data.expirationDate) : fallback.expirationDate || null,
+    lastValidation: now,
+    offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
+    licenseToken: data?.licenseToken ?? fallback.licenseToken ?? null,
+  };
+};
 
-  if (license.expirationDate && now > license.expirationDate) {
-    nextStatus = "EXPIRED";
+const getCurrentLicense = async () => {
+  const installationHash = getTeamFingerprint();
+  return prisma.license.findUnique({ where: { installationHash } });
+};
+
+const upsertLocalLicense = async (installationHash, remoteData, existing) => {
+  const mapped = mapRemoteToLocal(remoteData, existing || {});
+
+  if (existing) {
+    return prisma.license.update({ where: { id: existing.id }, data: mapped });
   }
 
-  if (license.offlineGraceUntil && now > license.offlineGraceUntil) {
-    nextStatus = "BLOCKED";
-  }
-
-  if (nextStatus !== license.status) {
-    return prisma.license.update({
-      where: { id: license.id },
-      data: { status: nextStatus },
-    });
-  }
-
-  return license;
+  return prisma.license.create({ data: { installationHash, ...mapped } });
 };
 
 const registerLicense = async ({ nit }) => {
-  const license = await getCurrentLicense();
-  return prisma.license.update({
-    where: { id: license.id },
-    data: { nit: nit || license.nit },
+  if (!nit) {
+    throw new ApiError(400, "nit is required");
+  }
+
+  const baseUrl = assertServerUrl();
+  const installationHash = getTeamFingerprint();
+  const existing = await prisma.license.findUnique({ where: { installationHash } });
+
+  const payload = buildCentralPayload(nit, installationHash);
+  console.info("[License] Registering online against DocuCloud", { nit, installationHash });
+
+  const response = await fetch(`${baseUrl}/api/licencias/activar-online`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("[License] Online register failed", { status: response.status, body: text });
+    throw new ApiError(502, "Failed to register license with DocuCloud", { status: response.status });
+  }
+
+  const remoteData = await response.json();
+  return upsertLocalLicense(installationHash, remoteData, existing);
 };
 
 const validateWithCentralServer = async (license) => {
-  const now = new Date();
-  const centralServerUrl = process.env.LICENSE_SERVER_URL;
-
-  if (!centralServerUrl) {
-    return prisma.license.update({
-      where: { id: license.id },
-      data: {
-        lastValidation: now,
-        offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
-      },
-    });
+  if (!license) {
+    throw new ApiError(404, "No local cached license found. Register license first.");
   }
 
+  const baseUrl = assertServerUrl();
+  const now = new Date();
+  const payload = buildCentralPayload(license.nit, license.installationHash);
+
   try {
-    const response = await fetch(`${centralServerUrl}/validate`, {
+    const response = await fetch(`${baseUrl}/api/licencias/validar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nit: license.nit,
-        installationHash: license.installationHash,
-        token: license.licenseToken,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      throw new Error(`License server returned ${response.status}`);
+      const text = await response.text();
+      console.error("[License] Validation failed", { status: response.status, body: text });
+      throw new Error(`Validation failed with status ${response.status}`);
     }
 
-    const payload = await response.json();
-    return prisma.license.update({
-      where: { id: license.id },
-      data: {
-        status: payload.status || license.status,
-        licenseType: payload.licenseType || license.licenseType,
-        activationDate: payload.activationDate ? new Date(payload.activationDate) : license.activationDate,
-        expirationDate: payload.expirationDate ? new Date(payload.expirationDate) : license.expirationDate,
-        lastValidation: now,
-        offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
-      },
-    });
+    const remoteData = await response.json();
+    return upsertLocalLicense(license.installationHash, remoteData, license);
   } catch (error) {
-    if (license.offlineGraceUntil && now <= license.offlineGraceUntil) {
+    console.warn("[License] DocuCloud unavailable, switching to offline fallback", {
+      message: error.message,
+      installationHash: license.installationHash,
+    });
+
+    if (license.offlineGraceUntil && now <= new Date(license.offlineGraceUntil)) {
       return prisma.license.update({
         where: { id: license.id },
-        data: { status: license.status, lastValidation: now },
+        data: { lastValidation: now },
       });
     }
 
@@ -136,30 +144,39 @@ const validateWithCentralServer = async (license) => {
 };
 
 const activateLicense = async ({ token }) => {
+  // TODO: Integrate manual token activation flow with DocuCloud endpoint when available.
   if (!token) {
     throw new ApiError(400, "License token is required");
   }
 
-  const license = await getCurrentLicense();
-  const now = new Date();
-
-  return prisma.license.update({
-    where: { id: license.id },
-    data: {
-      status: "ACTIVE",
-      licenseType: "PERMANENT",
-      activationDate: license.activationDate || now,
-      expirationDate: null,
-      licenseToken: token,
-      lastValidation: now,
-      offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
-    },
-  });
+  throw new ApiError(501, "Manual token activation is not implemented yet");
 };
 
 const initializeLicense = async () => {
-  const license = await getCurrentLicense();
-  return evaluateLicense(license);
+  const installationHash = getTeamFingerprint();
+  const local = await prisma.license.findUnique({ where: { installationHash } });
+
+  if (!local) {
+    const defaultNit = process.env.LICENSE_DEFAULT_NIT;
+    if (!defaultNit) {
+      console.warn("[License] No local license and LICENSE_DEFAULT_NIT is not configured");
+      return null;
+    }
+
+    try {
+      return await registerLicense({ nit: defaultNit });
+    } catch (error) {
+      console.error("[License] Startup register failed", { message: error.message });
+      return null;
+    }
+  }
+
+  try {
+    return await validateWithCentralServer(local);
+  } catch (error) {
+    console.error("[License] Startup validation failed", { message: error.message });
+    return local;
+  }
 };
 
 export const licenseService = {
