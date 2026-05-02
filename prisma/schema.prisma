@@ -22,6 +22,19 @@ enum EntryStatus {
   CANCELED
 }
 
+enum LicenseStatus {
+  DEMO
+  ACTIVE
+  BLOCKED
+  EXPIRED
+}
+
+enum LicenseType {
+  DEMO
+  ANNUAL
+  PERMANENT
+}
+
 model User {
   id        Int       @id @default(autoincrement())
   username  String    @unique
@@ -132,4 +145,19 @@ model Sequence {
   nextNumber Int    @default(1) @map("siguienteNumero")
 
   @@map("Secuencia")
+}
+
+model License {
+  id               Int           @id @default(autoincrement())
+  nit              String
+  installationHash String        @unique
+  status           LicenseStatus @default(DEMO)
+  licenseType      LicenseType   @default(DEMO)
+  activationDate   DateTime?
+  expirationDate   DateTime?
+  lastValidation   DateTime?
+  offlineGraceUntil DateTime?
+  licenseToken     String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 }

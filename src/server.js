@@ -6,6 +6,7 @@ import routes from "./routes/index.js";
 import { swaggerSpec } from "./docs/swagger.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { ensureAdminUser } from "./seed/adminSeed.js";
+import { licenseService } from "./services/licenseService.js";
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 
 await ensureAdminUser();
+await licenseService.initializeLicense();
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

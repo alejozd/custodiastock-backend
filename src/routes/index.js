@@ -5,6 +5,7 @@ import productRoutes from "./productRoutes.js";
 import deliveryRoutes from "./deliveryRoutes.js";
 import entryRoutes from "./entryRoutes.js";
 import sequenceRoutes from "./sequenceRoutes.js";
+import licenseRoutes from "./licenseRoutes.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -14,6 +15,7 @@ router.get("/health", (req, res) => {
 });
 
 router.use("/auth", authRoutes);
+router.use("/license", licenseRoutes);
 
 router.use("/users", authMiddleware, userRoutes);
 router.use("/products", authMiddleware, productRoutes);
