@@ -23,33 +23,62 @@ async function ensureSequences() {
   }
 }
 
-export async function ensureAdminUser() {
-  await ensureSequences();
-
+async function createUserIfNotExists(userData) {
   const existing = await prisma.user.findFirst({
-    where: {
-      username: username,
-    },
+    where: { username: userData.username },
   });
 
   if (existing) {
-    console.log("ADMIN ya existe");
-    return;
+    if (userData.username === "admin") {
+      console.log("USER SEED EXISTS: admin");
+    } else {
+      console.log(`USER SEED EXISTS: ${userData.username}`);
+    }
+    return existing;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-  const admin = await prisma.user.create({
+  const createdUser = await prisma.user.create({
     data: {
-      username,
-      fullName: username,
-      email: "alejo@local.dev",
+      username: userData.username,
+      fullName: userData.fullName,
+      email: userData.email,
       password: hashedPassword,
-      role: "ADMIN",
-      active: true,
+      role: userData.role,
+      active: userData.active,
     },
   });
 
-  console.log("ADMIN creado automáticamente");
-  console.log(admin);
+  if (userData.username === "admin") {
+    console.log("USER SEED CREATED: admin");
+  } else {
+    console.log(`USER SEED CREATED: ${userData.username}`);
+  }
+
+  return createdUser;
+}
+
+export async function ensureAdminUser() {
+  await ensureSequences();
+
+  if (username && password) {
+    await createUserIfNotExists({
+      username,
+      password,
+      fullName: username,
+      email: "alejo@local.dev",
+      role: "ADMIN",
+      active: true,
+    });
+  }
+
+  await createUserIfNotExists({
+    username: "admin",
+    password: "admin123*",
+    fullName: "System Admin",
+    email: "admin@local.dev",
+    role: "ADMIN",
+    active: true,
+  });
 }
