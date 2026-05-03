@@ -67,6 +67,15 @@ const getTeamFingerprint = () => {
 const buildCentralPayload = (nit, installationHash) => ({ nit, app: APP_NAME, instalacion_hash: installationHash });
 const getServerUrl = () => (process.env.LICENSE_SERVER_URL || DOCUCLOUD_URL).replace(/\/$/, "");
 
+const logFlow = ({ dbLicense, nit, installationHash, source }) => {
+  console.log("[LICENSE FLOW] step:", {
+    hasDb: !!dbLicense,
+    nit: nit || null,
+    installationHash,
+    source,
+  });
+};
+
 const postDocuCloud = async (path, payload) => {
   const response = await fetch(`${getServerUrl()}${path}`, {
     method: "POST",
@@ -124,8 +133,12 @@ const getCurrentLicense = async () => {
 const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
   const installationHash = dbLicense?.installationHash || getTeamFingerprint();
   const nit = dbLicense?.nit || process.env.LICENSE_DEFAULT_NIT || fallbackNit;
-  if (!nit) throw new ApiError(400, "No NIT available for DocuCloud validation");
+  if (!nit) {
+    logFlow({ dbLicense, nit, installationHash, source: "fallback" });
+    return null;
+  }
 
+  logFlow({ dbLicense, nit, installationHash, source: "docucloud" });
   const payload = buildCentralPayload(nit, installationHash);
   const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
   const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
@@ -146,7 +159,9 @@ const registerLicense = async ({ nit }) => {
 
 const validateWithCentralServer = async (dbLicense) => {
   try {
-    return await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
+    const synced = await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
+    if (synced) return synced;
+    if (!dbLicense) return buildDemoFallback(getTeamFingerprint());
   } catch (error) {
     if (!dbLicense) throw error;
 
@@ -160,6 +175,7 @@ const validateWithCentralServer = async (dbLicense) => {
     }
 
     const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
+    logFlow({ dbLicense: blocked, nit: blocked.nit, installationHash: blocked.installationHash, source: "db" });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
     return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
   }
@@ -177,7 +193,7 @@ const buildDemoFallback = (installationHash) => ({
   daysRemaining: null,
   installationHash,
   lastValidationAt: new Date(),
-  offlineMode: true,
+  offlineMode: false,
 });
 
 const getLicenseStatusSynced = async () => {
@@ -186,7 +202,9 @@ const getLicenseStatusSynced = async () => {
 
   // Prioridad 1: DocuCloud
   try {
-    return await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
+    const synced = await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
+    if (synced) return synced;
+    if (!dbLicense) return buildDemoFallback(getTeamFingerprint());
   } catch (error) {
     // Prioridad 2: DB cache (si existe)
     if (dbLicense) {
@@ -194,11 +212,13 @@ const getLicenseStatusSynced = async () => {
       const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
       if (offlineValid) {
         const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
+        logFlow({ dbLicense: saved, nit: saved.nit, installationHash: saved.installationHash, source: "db" });
         const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
         return buildLicenseResponse(saved, cachedRaw, true);
       }
 
       const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
+    logFlow({ dbLicense: blocked, nit: blocked.nit, installationHash: blocked.installationHash, source: "db" });
       const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
       return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
     }
@@ -206,11 +226,14 @@ const getLicenseStatusSynced = async () => {
     // Prioridad 3: Auto-register con LICENSE_DEFAULT_NIT
     if (process.env.LICENSE_DEFAULT_NIT) {
       try {
-        return await registerLicense({ nit: process.env.LICENSE_DEFAULT_NIT });
+        const registered = await registerLicense({ nit: process.env.LICENSE_DEFAULT_NIT });
+        logFlow({ dbLicense, nit: process.env.LICENSE_DEFAULT_NIT, installationHash, source: "docucloud" });
+        return registered;
       } catch {}
     }
 
     // Prioridad 4: DEMO fallback controlado
+    logFlow({ dbLicense, nit: null, installationHash, source: "fallback" });
     return buildDemoFallback(installationHash);
   }
 };
