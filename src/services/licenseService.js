@@ -149,6 +149,27 @@ const persistLicenseCache = async (dbLicense, response, docuCloudData) => {
   return prisma.license.create({ data });
 };
 
+
+const ensureLocalBootstrapLicense = async () => {
+  const installationHash = getTeamFingerprint();
+  const existing = await prisma.license.findUnique({ where: { installationHash } });
+  if (existing) return existing;
+
+  const now = new Date();
+  return prisma.license.create({
+    data: {
+      nit: process.env.LICENSE_DEFAULT_NIT || "",
+      status: "DEMO",
+      licenseType: "DEMO",
+      installationHash,
+      activationDate: now,
+      expirationDate: null,
+      lastValidation: now,
+      offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
+    },
+  });
+};
+
 const getCurrentLicense = async () => {
   const installationHash = getTeamFingerprint();
   return prisma.license.findUnique({ where: { installationHash } });
@@ -234,44 +255,41 @@ const buildDemoFallback = (installationHash) => ({
 
 const getLicenseStatusSynced = async () => {
   const installationHash = getTeamFingerprint();
-  const dbLicense = await prisma.license.findUnique({ where: { installationHash } });
+  let dbLicense = await prisma.license.findUnique({ where: { installationHash } });
+
+  if (!dbLicense) {
+    dbLicense = await ensureLocalBootstrapLicense();
+
+    // Sync async no bloqueante
+    validateWithCentralServer(dbLicense).catch((error) => {
+      console.error("[LICENSE FLOW] async sync failed after local bootstrap", { message: error.message });
+    });
+
+    logFlow({ dbLicense, nit: dbLicense.nit, installationHash, source: "db" });
+    return buildLicenseResponse(dbLicense, null, false);
+  }
 
   // Prioridad 1: DocuCloud
   try {
     const synced = await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
     if (synced) return synced;
-    if (!dbLicense) return buildDemoFallback(getTeamFingerprint());
   } catch (error) {
     // Prioridad 2: DB cache (si existe)
-    if (dbLicense) {
-      const now = new Date();
-      const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
-      if (offlineValid) {
-        const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
-        logFlow({ dbLicense: saved, nit: saved.nit, installationHash: saved.installationHash, source: "db" });
-        const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
-        return buildLicenseResponse(saved, cachedRaw, true);
-      }
-
-      const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
-    logFlow({ dbLicense: blocked, nit: blocked.nit, installationHash: blocked.installationHash, source: "db" });
-      const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
-      return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
+    const now = new Date();
+    const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
+    if (offlineValid) {
+      const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
+      logFlow({ dbLicense: saved, nit: saved.nit, installationHash: saved.installationHash, source: "db" });
+      const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
+      return buildLicenseResponse(saved, cachedRaw, true);
     }
 
-    // Prioridad 3: Auto-register con LICENSE_DEFAULT_NIT
-    if (process.env.LICENSE_DEFAULT_NIT) {
-      try {
-        const registered = await registerLicense({ nit: process.env.LICENSE_DEFAULT_NIT });
-        logFlow({ dbLicense, nit: process.env.LICENSE_DEFAULT_NIT, installationHash, source: "docucloud" });
-        return registered;
-      } catch {}
-    }
-
-    // Prioridad 4: DEMO fallback controlado
-    logFlow({ dbLicense, nit: null, installationHash, source: "fallback" });
-    return buildDemoFallback(installationHash);
+    const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
+    const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
+    return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
   }
+
+  return buildLicenseResponse(dbLicense, null, false);
 };
 
 const activateLicense = async ({ token }) => {
@@ -280,14 +298,11 @@ const activateLicense = async ({ token }) => {
 };
 
 const initializeLicense = async () => {
-  const dbLicense = await getCurrentLicense();
-  if (!dbLicense) {
-    const defaultNit = process.env.LICENSE_DEFAULT_NIT;
-    if (!defaultNit) return null;
-    return registerLicense({ nit: defaultNit });
-  }
-
-  return validateWithCentralServer(dbLicense);
+  const dbLicense = await ensureLocalBootstrapLicense();
+  validateWithCentralServer(dbLicense).catch((error) => {
+    console.error("[LICENSE FLOW] startup sync failed", { message: error.message });
+  });
+  return buildLicenseResponse(dbLicense, null, false);
 };
 
 export const licenseService = {
