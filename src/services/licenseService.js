@@ -4,7 +4,8 @@ import fs from "fs";
 import path from "path";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
-import { LicenseStatus, LicenseType } from "@prisma/client";
+import prismaPkg from "@prisma/client";
+const { LicenseStatus, LicenseType } = prismaPkg;
 
 const OFFLINE_GRACE_DAYS = 7;
 const APP_NAME = "CustodiaStock";
@@ -32,7 +33,7 @@ const ensureLicenseId = () => {
 const STATUS_MAP = {
   pending_activation: LicenseStatus.PENDING_ACTIVATION,
   pendiente_activacion: LicenseStatus.PENDING_ACTIVATION,
-  demo: LicenseType.DEMO,
+  demo: LicenseStatus.PENDING_ACTIVATION,
   activa: LicenseStatus.ACTIVE,
   active: LicenseStatus.ACTIVE,
   bloqueada: LicenseStatus.BLOCKED,
@@ -42,7 +43,7 @@ const STATUS_MAP = {
 };
 
 const TYPE_MAP = {
-  demo: LicenseStatus.DEMO,
+  demo: LicenseType.DEMO,
   anual: "ANNUAL",
   annual: "ANNUAL",
   permanente: "PERMANENT",
@@ -56,7 +57,7 @@ const normalizeEnum = (value, mapping, fallback = null) => {
 
 const isValidEnum = (value, enumObject) => Object.values(enumObject).includes(value);
 
-const normalizeStatus = (value, fallback = LicenseStatus.BLOCKED) => {
+const normalizeStatus = (value, fallback = LicenseStatus.PENDING_ACTIVATION) => {
   const normalized = normalizeEnum(value, STATUS_MAP, fallback);
   return isValidEnum(normalized, LicenseStatus) ? normalized : fallback;
 };
@@ -129,7 +130,7 @@ const bootstrapLicenseInstallation = async (nit, installationHash) => {
 };
 
 const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => {
-  const status = normalizeStatus(docuCloudData?.estado, dbLicense?.status || LicenseStatus.BLOCKED);
+  const status = normalizeStatus(docuCloudData?.estado, dbLicense?.status || LicenseStatus.PENDING_ACTIVATION);
   const licenseType = normalizeLicenseType(docuCloudData?.tipo_licencia, dbLicense?.licenseType || LicenseType.DEMO);
 
   return {
@@ -298,10 +299,6 @@ const getLicenseStatusSynced = async () => {
       ...buildLicenseResponse(dbLicense, null, false),
       message: "Debe ingresar NIT para activar licencia",
     };
-  }
-
-  if (dbLicense.status === LicenseStatus.DEMO) {
-    return buildLicenseResponse(dbLicense, null, false);
   }
 
   try {

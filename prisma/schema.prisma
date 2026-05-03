@@ -23,10 +23,9 @@ enum EntryStatus {
 }
 
 enum LicenseStatus {
+  PENDING_ACTIVATION
   ACTIVE
   BLOCKED
-  DEMO
-  PENDING_ACTIVATION
 }
 
 enum LicenseType {
@@ -151,7 +150,7 @@ model License {
   id               Int           @id @default(autoincrement())
   nit              String
   installationHash String        @unique
-  status           LicenseStatus @default(DEMO)
+  status           LicenseStatus @default(PENDING_ACTIVATION)
   licenseType      LicenseType   @default(DEMO)
   activationDate   DateTime?
   expirationDate   DateTime?
