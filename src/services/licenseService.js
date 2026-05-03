@@ -143,13 +143,13 @@ const bootstrapLicenseInstallation = async (nit, installationHash) => {
 const buildDocuCloudResponse = (dbLicense, docuCloudData, offlineMode = false) => {
   const response = {
     nit: docuCloudData?.nit ?? dbLicense?.nit ?? "",
-    status: normalizeStatus(docuCloudData?.estado, LicenseStatus.PENDING_ACTIVATION),
-    licenseType: normalizeLicenseType(docuCloudData?.tipo_licencia, LicenseType.DEMO),
+    status: normalizeStatus(docuCloudData?.estado || docuCloudData?.status, LicenseStatus.PENDING_ACTIVATION),
+    licenseType: normalizeLicenseType(docuCloudData?.tipo_licencia || docuCloudData?.licenseType, LicenseType.DEMO),
     applicationName: docuCloudData?.app || APP_NAME,
     version: docuCloudData?.version ?? null,
-    activationDate: docuCloudData?.activada_en ? new Date(docuCloudData.activada_en) : null,
-    expirationDate: docuCloudData?.expira ? new Date(docuCloudData.expira) : null,
-    daysRemaining: docuCloudData?.dias_restantes ?? null,
+    activationDate: (docuCloudData?.activada_en || docuCloudData?.activationDate) ? new Date(docuCloudData.activada_en || docuCloudData.activationDate) : null,
+    expirationDate: (docuCloudData?.expira || docuCloudData?.expirationDate) ? new Date(docuCloudData.expira || docuCloudData.expirationDate) : null,
+    daysRemaining: docuCloudData?.dias_restantes ?? docuCloudData?.daysRemaining ?? null,
     installationHash: docuCloudData?.instalacion_hash || dbLicense?.installationHash || getTeamFingerprint(),
     lastValidationAt: new Date(),
     offlineMode: Boolean(offlineMode),
@@ -160,6 +160,10 @@ const buildDocuCloudResponse = (dbLicense, docuCloudData, offlineMode = false) =
   }
   if (!isValidEnum(response.licenseType, LicenseType)) {
     response.licenseType = LicenseType.DEMO;
+  }
+
+  if (response.status === LicenseStatus.BLOCKED) {
+    response.offlineMode = false;
   }
 
   return response;
@@ -251,6 +255,9 @@ const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
     const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
     const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
     console.log("SOURCE=DOCUCLOUD");
+    if (response.status === LicenseStatus.BLOCKED) {
+      console.log("[LICENSE FLOW] Remote status BLOCKED applied locally");
+    }
     await persistLicenseCache(dbLicense, response, docuCloudData);
     return response;
   } catch (error) {
