@@ -1,7 +1,7 @@
 import { licenseService } from "../services/licenseService.js";
 
 export const getLicenseStatus = async (req, res) => {
-  const license = await licenseService.getCurrentLicense();
+  const license = await licenseService.getLicenseStatusSynced();
   res.json(license);
 };
 
