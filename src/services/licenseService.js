@@ -5,7 +5,18 @@ import path from "path";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import prismaPkg from "@prisma/client";
-const { LicenseStatus, LicenseType } = prismaPkg;
+
+const LicenseStatus = prismaPkg.LicenseStatus || prismaPkg.$Enums?.LicenseStatus || {
+  PENDING_ACTIVATION: "PENDING_ACTIVATION",
+  ACTIVE: "ACTIVE",
+  BLOCKED: "BLOCKED",
+};
+
+const LicenseType = prismaPkg.LicenseType || prismaPkg.$Enums?.LicenseType || {
+  DEMO: "DEMO",
+  ANNUAL: "ANNUAL",
+  PERMANENT: "PERMANENT",
+};
 
 const OFFLINE_GRACE_DAYS = 7;
 const APP_NAME = "CustodiaStock";
