@@ -6,13 +6,13 @@ import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import prismaPkg from "@prisma/client";
 
-const LicenseStatus = prismaPkg.LicenseStatus || prismaPkg.$Enums?.LicenseStatus || {
+const LicenseStatus = {
   PENDING_ACTIVATION: "PENDING_ACTIVATION",
   ACTIVE: "ACTIVE",
   BLOCKED: "BLOCKED",
 };
 
-const LicenseType = prismaPkg.LicenseType || prismaPkg.$Enums?.LicenseType || {
+const LicenseType = {
   DEMO: "DEMO",
   ANNUAL: "ANNUAL",
   PERMANENT: "PERMANENT",
@@ -296,26 +296,23 @@ const getLicenseStatusSynced = async () => {
   if (!dbLicense) {
     dbLicense = await ensureLocalBootstrapLicense();
     console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
-    return {
-      ...buildLicenseResponse(dbLicense, null, false),
-      message: "Debe ingresar NIT para activar licencia",
-    };
+    const response = buildLicenseResponse(dbLicense, null, false);
+    if (!response.status) response.status = LicenseStatus.PENDING_ACTIVATION;
+    return { ...response, message: "Debe ingresar NIT para activar licencia" };
   }
 
   if (!dbLicense.nit || dbLicense.nit.trim() === "") {
     console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
-    return {
-      ...buildLicenseResponse({ ...dbLicense, status: LicenseStatus.PENDING_ACTIVATION }, null, false),
-      message: "Debe ingresar NIT para activar licencia",
-    };
+    const response = buildLicenseResponse({ ...dbLicense, status: LicenseStatus.PENDING_ACTIVATION }, null, false);
+    if (!response.status) response.status = LicenseStatus.PENDING_ACTIVATION;
+    return { ...response, message: "Debe ingresar NIT para activar licencia" };
   }
 
   if (dbLicense.status === LicenseStatus.PENDING_ACTIVATION) {
     console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
-    return {
-      ...buildLicenseResponse(dbLicense, null, false),
-      message: "Debe ingresar NIT para activar licencia",
-    };
+    const response = buildLicenseResponse(dbLicense, null, false);
+    if (!response.status) response.status = LicenseStatus.PENDING_ACTIVATION;
+    return { ...response, message: "Debe ingresar NIT para activar licencia" };
   }
 
   try {
