@@ -139,6 +139,32 @@ const bootstrapLicenseInstallation = async (nit, installationHash) => {
   return docuCloudData;
 };
 
+
+const buildDocuCloudResponse = (dbLicense, docuCloudData, offlineMode = false) => {
+  const response = {
+    nit: docuCloudData?.nit ?? dbLicense?.nit ?? "",
+    status: normalizeStatus(docuCloudData?.estado, LicenseStatus.PENDING_ACTIVATION),
+    licenseType: normalizeLicenseType(docuCloudData?.tipo_licencia, LicenseType.DEMO),
+    applicationName: docuCloudData?.app || APP_NAME,
+    version: docuCloudData?.version ?? null,
+    activationDate: docuCloudData?.activada_en ? new Date(docuCloudData.activada_en) : null,
+    expirationDate: docuCloudData?.expira ? new Date(docuCloudData.expira) : null,
+    daysRemaining: docuCloudData?.dias_restantes ?? null,
+    installationHash: docuCloudData?.instalacion_hash || dbLicense?.installationHash || getTeamFingerprint(),
+    lastValidationAt: new Date(),
+    offlineMode: Boolean(offlineMode),
+  };
+
+  if (!isValidEnum(response.status, LicenseStatus)) {
+    response.status = LicenseStatus.PENDING_ACTIVATION;
+  }
+  if (!isValidEnum(response.licenseType, LicenseType)) {
+    response.licenseType = LicenseType.DEMO;
+  }
+
+  return response;
+};
+
 const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => {
   const status = normalizeStatus(docuCloudData?.estado, dbLicense?.status || LicenseStatus.PENDING_ACTIVATION);
   const safeStatus = isValidEnum(status, LicenseStatus) ? status : LicenseStatus.PENDING_ACTIVATION;
@@ -223,14 +249,16 @@ const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
     logFlow({ dbLicense, nit, installationHash, source: "docucloud" });
     const payload = buildCentralPayload(nit, installationHash);
     const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
-    const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
+    const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
+    console.log("SOURCE=DOCUCLOUD");
     await persistLicenseCache(dbLicense, response, docuCloudData);
     return response;
   } catch (error) {
     if (isInvalidInstallationError(error)) {
       const bootstrapped = await bootstrapLicenseInstallation(nit, installationHash);
       if (bootstrapped) {
-        const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, bootstrapped, false);
+        const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, bootstrapped, false);
+        console.log("SOURCE=DOCUCLOUD");
         await persistLicenseCache(dbLicense, response, bootstrapped);
         return response;
       }
@@ -245,7 +273,8 @@ const registerLicense = async ({ nit }) => {
   const dbLicense = await prisma.license.findUnique({ where: { installationHash } });
   const payload = buildCentralPayload(nit, installationHash);
   const docuCloudData = await postDocuCloud("/api/licencias/activar-online", payload);
-  const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
+  const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
+  console.log("SOURCE=DOCUCLOUD");
   await persistLicenseCache(dbLicense, response, docuCloudData);
   return response;
 };
@@ -264,12 +293,14 @@ const validateWithCentralServer = async (dbLicense) => {
     if (offlineValid) {
       const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
       const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
+      console.log("SOURCE=OFFLINE_MODE");
       return buildLicenseResponse(saved, cachedRaw, true);
     }
 
     const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: LicenseStatus.BLOCKED, lastValidation: now } });
     logFlow({ dbLicense: blocked, nit: blocked.nit, installationHash: blocked.installationHash, source: "db" });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
+    console.log("SOURCE=LOCAL_CACHE");
     return buildLicenseResponse({ ...blocked, status: LicenseStatus.BLOCKED }, cachedRaw, true);
   }
 };
@@ -327,11 +358,13 @@ const getLicenseStatusSynced = async () => {
     if (offlineValid) {
       const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
       const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
+      console.log("SOURCE=OFFLINE_MODE");
       return buildLicenseResponse(saved, cachedRaw, true);
     }
 
     const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: LicenseStatus.BLOCKED, lastValidation: now } });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
+    console.log("SOURCE=LOCAL_CACHE");
     return buildLicenseResponse({ ...blocked, status: LicenseStatus.BLOCKED }, cachedRaw, true);
   }
 
@@ -344,7 +377,8 @@ const activateLicense = async ({ nit }) => {
   const dbLicense = await ensureLocalBootstrapLicense();
   console.log("[LICENSE FLOW] state=ACTIVATING");
   const docuCloudData = await postDocuCloud("/api/licencias/activar-online", buildCentralPayload(nit.trim(), installationHash));
-  const response = buildLicenseResponse({ ...dbLicense, nit: nit.trim(), status: LicenseStatus.ACTIVE }, docuCloudData, false);
+  const response = buildDocuCloudResponse({ ...dbLicense, nit: nit.trim(), status: LicenseStatus.ACTIVE }, docuCloudData, false);
+  console.log("SOURCE=DOCUCLOUD");
   await persistLicenseCache(dbLicense, response, docuCloudData);
   console.log("[LICENSE FLOW] state=ACTIVE");
   return response;
