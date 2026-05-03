@@ -100,12 +100,14 @@ const getCurrentLicense = async () => {
   return prisma.license.findUnique({ where: { installationHash } });
 };
 
-const syncLicenseWithDocuCloud = async (dbLicense) => {
-  if (!dbLicense) throw new ApiError(404, "No local cached license found. Register license first.");
+const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
+  const installationHash = dbLicense?.installationHash || getTeamFingerprint();
+  const nit = dbLicense?.nit || fallbackNit || process.env.LICENSE_DEFAULT_NIT;
+  if (!nit) throw new ApiError(400, "No NIT available for DocuCloud validation");
 
-  const payload = buildCentralPayload(dbLicense.nit, dbLicense.installationHash);
+  const payload = buildCentralPayload(nit, installationHash);
   const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
-  const response = buildLicenseResponse(dbLicense, docuCloudData, false);
+  const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
   await persistLicenseCache(dbLicense, response, docuCloudData);
   return response;
 };
@@ -123,7 +125,7 @@ const registerLicense = async ({ nit }) => {
 
 const validateWithCentralServer = async (dbLicense) => {
   try {
-    return await syncLicenseWithDocuCloud(dbLicense);
+    return await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
   } catch (error) {
     if (!dbLicense) throw error;
 
@@ -142,9 +144,54 @@ const validateWithCentralServer = async (dbLicense) => {
   }
 };
 
+
+const buildDemoFallback = (installationHash) => ({
+  nit: process.env.LICENSE_DEFAULT_NIT || "",
+  status: "DEMO",
+  licenseType: "DEMO",
+  applicationName: APP_NAME,
+  version: null,
+  activationDate: null,
+  expirationDate: null,
+  daysRemaining: null,
+  installationHash,
+  lastValidationAt: new Date(),
+  offlineMode: true,
+});
+
 const getLicenseStatusSynced = async () => {
-  const dbLicense = await getCurrentLicense();
-  return validateWithCentralServer(dbLicense);
+  const installationHash = getTeamFingerprint();
+  const dbLicense = await prisma.license.findUnique({ where: { installationHash } });
+
+  // Prioridad 1: DocuCloud
+  try {
+    return await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
+  } catch (error) {
+    // Prioridad 2: DB cache (si existe)
+    if (dbLicense) {
+      const now = new Date();
+      const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
+      if (offlineValid) {
+        const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
+        const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
+        return buildLicenseResponse(saved, cachedRaw, true);
+      }
+
+      const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
+      const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
+      return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
+    }
+
+    // Prioridad 3: Auto-register con LICENSE_DEFAULT_NIT
+    if (process.env.LICENSE_DEFAULT_NIT) {
+      try {
+        return await registerLicense({ nit: process.env.LICENSE_DEFAULT_NIT });
+      } catch {}
+    }
+
+    // Prioridad 4: DEMO fallback controlado
+    return buildDemoFallback(installationHash);
+  }
 };
 
 const activateLicense = async ({ token }) => {
