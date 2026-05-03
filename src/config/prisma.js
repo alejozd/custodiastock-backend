@@ -9,6 +9,7 @@ const modelAliases = {
   sequence: ["sequence", "secuencia"],
   entry: ["entry", "entrada"],
   entryItem: ["entryItem", "detalleEntrada"],
+  license: ["license", "licencia"],
 };
 
 const prisma = new Proxy(prismaClient, {

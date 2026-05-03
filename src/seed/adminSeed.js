@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { logger } from "../utils/logger.js";
 
 const prisma = new PrismaClient();
 const username = process.env.ADMIN_USER;
@@ -18,38 +19,67 @@ async function ensureSequences() {
 
     if (!existing) {
       await prisma.sequence.create({ data: seq });
-      console.log(`Secuencia '${seq.name}' creada.`);
+      logger.info("DB", `Secuencia ${seq.name} creada.`);
     }
   }
+}
+
+async function createUserIfNotExists(userData) {
+  const existing = await prisma.user.findFirst({
+    where: { username: userData.username },
+  });
+
+  if (existing) {
+    if (userData.username === "admin") {
+      logger.debug("AUTH", "USER SEED EXISTS: admin");
+    } else {
+      logger.debug("AUTH", `USER SEED EXISTS: ${userData.username}`);
+    }
+    return existing;
+  }
+
+  const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+  const createdUser = await prisma.user.create({
+    data: {
+      username: userData.username,
+      fullName: userData.fullName,
+      email: userData.email,
+      password: hashedPassword,
+      role: userData.role,
+      active: userData.active,
+    },
+  });
+
+  if (userData.username === "admin") {
+    logger.debug("AUTH", "USER SEED CREATED: admin");
+  } else {
+    logger.debug("AUTH", `USER SEED CREATED: ${userData.username}`);
+  }
+
+  return createdUser;
 }
 
 export async function ensureAdminUser() {
   await ensureSequences();
 
-  const existing = await prisma.user.findFirst({
-    where: {
-      username: username,
-    },
-  });
-
-  if (existing) {
-    console.log("ADMIN ya existe");
-    return;
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const admin = await prisma.user.create({
-    data: {
+  if (username && password) {
+    await createUserIfNotExists({
       username,
+      password,
       fullName: username,
       email: "alejo@local.dev",
-      password: hashedPassword,
       role: "ADMIN",
       active: true,
-    },
-  });
+    });
+  }
 
-  console.log("ADMIN creado automáticamente");
-  console.log(admin);
+  await createUserIfNotExists({
+    username: "admin",
+    password: "admin123*",
+    fullName: "System Admin",
+    email: "admin@local.dev",
+    role: "ADMIN",
+    active: true,
+  });
 }
