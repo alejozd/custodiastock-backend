@@ -47,6 +47,7 @@ const STATUS_MAP = {
   activa: LicenseStatus.ACTIVE,
   active: LicenseStatus.ACTIVE,
   bloqueada: LicenseStatus.BLOCKED,
+  bloqueado: LicenseStatus.BLOCKED,
   blocked: LicenseStatus.BLOCKED,
   expirada: LicenseStatus.BLOCKED,
   expired: LicenseStatus.BLOCKED,
