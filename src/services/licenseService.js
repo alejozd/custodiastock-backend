@@ -51,6 +51,7 @@ const STATUS_MAP = {
   blocked: LicenseStatus.BLOCKED,
   expirada: LicenseStatus.BLOCKED,
   expired: LicenseStatus.BLOCKED,
+  demo: LicenseStatus.ACTIVE,
 };
 
 const TYPE_MAP = {
@@ -294,6 +295,9 @@ const validateWithCentralServer = async (dbLicense) => {
     if (!dbLicense) return buildDemoFallback(getTeamFingerprint());
   } catch (error) {
     if (!dbLicense) throw error;
+    if (error?.statusCode && error.statusCode !== 502) {
+      throw error;
+    }
 
     const now = new Date();
     const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
@@ -361,6 +365,9 @@ const getLicenseStatusSynced = async () => {
       return synced;
     }
   } catch (error) {
+    if (error?.statusCode && error.statusCode !== 502) {
+      throw error;
+    }
     const now = new Date();
     const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
     if (offlineValid) {
