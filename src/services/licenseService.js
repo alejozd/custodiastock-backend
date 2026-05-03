@@ -89,6 +89,30 @@ const postDocuCloud = async (path, payload) => {
   return response.json();
 };
 
+
+const isInvalidInstallationError = (error) => {
+  const body = error?.details?.body;
+  if (!body) return false;
+
+  try {
+    const parsed = JSON.parse(body);
+    return parsed?.error === "instalacion_invalida";
+  } catch {
+    return false;
+  }
+};
+
+const bootstrapLicenseInstallation = async (nit, installationHash) => {
+  if (!nit) {
+    return null;
+  }
+
+  logFlow({ dbLicense: null, nit, installationHash, source: "docucloud" });
+  await postDocuCloud("/api/licencias/activar-online", buildCentralPayload(nit, installationHash));
+  const docuCloudData = await postDocuCloud("/api/licencias/validar", buildCentralPayload(nit, installationHash));
+  return docuCloudData;
+};
+
 const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => {
   const status = normalizeEnum(docuCloudData?.estado, STATUS_MAP, dbLicense?.status || "BLOCKED");
   const licenseType = normalizeEnum(docuCloudData?.tipo_licencia, TYPE_MAP, dbLicense?.licenseType || "DEMO");
@@ -138,12 +162,24 @@ const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
     return null;
   }
 
-  logFlow({ dbLicense, nit, installationHash, source: "docucloud" });
-  const payload = buildCentralPayload(nit, installationHash);
-  const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
-  const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
-  await persistLicenseCache(dbLicense, response, docuCloudData);
-  return response;
+  try {
+    logFlow({ dbLicense, nit, installationHash, source: "docucloud" });
+    const payload = buildCentralPayload(nit, installationHash);
+    const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
+    const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
+    await persistLicenseCache(dbLicense, response, docuCloudData);
+    return response;
+  } catch (error) {
+    if (isInvalidInstallationError(error)) {
+      const bootstrapped = await bootstrapLicenseInstallation(nit, installationHash);
+      if (bootstrapped) {
+        const response = buildLicenseResponse({ ...dbLicense, nit, installationHash }, bootstrapped, false);
+        await persistLicenseCache(dbLicense, response, bootstrapped);
+        return response;
+      }
+    }
+    throw error;
+  }
 };
 
 const registerLicense = async ({ nit }) => {
