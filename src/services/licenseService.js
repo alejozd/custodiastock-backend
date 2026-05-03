@@ -9,6 +9,38 @@ const APP_NAME = "CustodiaStock";
 const APP_VERSION = pkg.version || "unknown";
 const DOCUCLOUD_URL = "https://api.zdevs.uk";
 
+const STATUS_MAP = {
+  demo: "DEMO",
+  activa: "ACTIVE",
+  active: "ACTIVE",
+  bloqueada: "BLOCKED",
+  blocked: "BLOCKED",
+  expirada: "EXPIRED",
+  expired: "EXPIRED",
+};
+
+const TYPE_MAP = {
+  demo: "DEMO",
+  anual: "ANNUAL",
+  annual: "ANNUAL",
+  permanente: "PERMANENT",
+  permanent: "PERMANENT",
+};
+
+const normalizeEnum = (value, mapping, fallback) => {
+  if (!value || typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = mapping[value.trim().toLowerCase()];
+  if (!normalized) {
+    console.warn("[License] Unknown enum value from DocuCloud", { value, fallback });
+    return fallback;
+  }
+
+  return normalized;
+};
+
 const addDays = (date, days) => {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
@@ -41,8 +73,8 @@ const normalizeDocuCloudData = (remoteData, fallback = {}) => {
   const now = new Date();
   return {
     nit: remoteData?.nit || fallback.nit,
-    status: remoteData?.estado || fallback.status,
-    licenseType: remoteData?.tipo_licencia || fallback.licenseType,
+    status: normalizeEnum(remoteData?.estado, STATUS_MAP, fallback.status || "DEMO"),
+    licenseType: normalizeEnum(remoteData?.tipo_licencia, TYPE_MAP, fallback.licenseType || "DEMO"),
     expirationDate: remoteData?.expira ? new Date(remoteData.expira) : fallback.expirationDate || null,
     daysRemaining: remoteData?.dias_restantes,
     installationHash: remoteData?.instalacion_hash || fallback.installationHash,
