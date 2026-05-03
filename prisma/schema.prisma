@@ -23,6 +23,7 @@ enum EntryStatus {
 }
 
 enum LicenseStatus {
+  PENDING_ACTIVATION
   DEMO
   ACTIVE
   BLOCKED

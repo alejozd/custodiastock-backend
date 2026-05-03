@@ -29,6 +29,8 @@ const ensureLicenseId = () => {
 };
 
 const STATUS_MAP = {
+  pending_activation: "PENDING_ACTIVATION",
+  pendiente_activacion: "PENDING_ACTIVATION",
   demo: "DEMO",
   activa: "ACTIVE",
   active: "ACTIVE",
@@ -159,7 +161,7 @@ const ensureLocalBootstrapLicense = async () => {
   return prisma.license.create({
     data: {
       nit: process.env.LICENSE_DEFAULT_NIT || "",
-      status: "DEMO",
+      status: "PENDING_ACTIVATION",
       licenseType: "DEMO",
       installationHash,
       activationDate: now,
@@ -241,7 +243,7 @@ const validateWithCentralServer = async (dbLicense) => {
 
 const buildDemoFallback = (installationHash) => ({
   nit: process.env.LICENSE_DEFAULT_NIT || "",
-  status: "DEMO",
+  status: "PENDING_ACTIVATION",
   licenseType: "DEMO",
   applicationName: APP_NAME,
   version: null,
@@ -259,27 +261,44 @@ const getLicenseStatusSynced = async () => {
 
   if (!dbLicense) {
     dbLicense = await ensureLocalBootstrapLicense();
+    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    return {
+      ...buildLicenseResponse(dbLicense, null, false),
+      message: "Debe ingresar NIT para activar licencia",
+    };
+  }
 
-    // Sync async no bloqueante
-    validateWithCentralServer(dbLicense).catch((error) => {
-      console.error("[LICENSE FLOW] async sync failed after local bootstrap", { message: error.message });
-    });
+  if (!dbLicense.nit || dbLicense.nit.trim() === "") {
+    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    return {
+      ...buildLicenseResponse({ ...dbLicense, status: "PENDING_ACTIVATION" }, null, false),
+      message: "Debe ingresar NIT para activar licencia",
+    };
+  }
 
-    logFlow({ dbLicense, nit: dbLicense.nit, installationHash, source: "db" });
+  if (dbLicense.status === "PENDING_ACTIVATION") {
+    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    return {
+      ...buildLicenseResponse(dbLicense, null, false),
+      message: "Debe ingresar NIT para activar licencia",
+    };
+  }
+
+  if (dbLicense.status === "DEMO") {
     return buildLicenseResponse(dbLicense, null, false);
   }
 
-  // Prioridad 1: DocuCloud
   try {
     const synced = await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
-    if (synced) return synced;
+    if (synced) {
+      console.log("[LICENSE FLOW] state=ACTIVE");
+      return synced;
+    }
   } catch (error) {
-    // Prioridad 2: DB cache (si existe)
     const now = new Date();
     const offlineValid = dbLicense.offlineGraceUntil && now <= new Date(dbLicense.offlineGraceUntil);
     if (offlineValid) {
       const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
-      logFlow({ dbLicense: saved, nit: saved.nit, installationHash: saved.installationHash, source: "db" });
       const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
       return buildLicenseResponse(saved, cachedRaw, true);
     }
@@ -292,13 +311,24 @@ const getLicenseStatusSynced = async () => {
   return buildLicenseResponse(dbLicense, null, false);
 };
 
-const activateLicense = async ({ token }) => {
-  if (!token) throw new ApiError(400, "License token is required");
-  throw new ApiError(501, "Manual token activation is not implemented yet");
+const activateLicense = async ({ nit }) => {
+  if (!nit || !nit.trim()) throw new ApiError(400, "NIT is required for activation");
+  const installationHash = getTeamFingerprint();
+  const dbLicense = await ensureLocalBootstrapLicense();
+  console.log("[LICENSE FLOW] state=ACTIVATING");
+  const docuCloudData = await postDocuCloud("/api/licencias/activar-online", buildCentralPayload(nit.trim(), installationHash));
+  const response = buildLicenseResponse({ ...dbLicense, nit: nit.trim(), status: "ACTIVE" }, docuCloudData, false);
+  await persistLicenseCache(dbLicense, response, docuCloudData);
+  console.log("[LICENSE FLOW] state=ACTIVE");
+  return response;
 };
 
 const initializeLicense = async () => {
   const dbLicense = await ensureLocalBootstrapLicense();
+  if (!dbLicense.nit || dbLicense.status === "PENDING_ACTIVATION") {
+    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    return buildLicenseResponse(dbLicense, null, false);
+  }
   validateWithCentralServer(dbLicense).catch((error) => {
     console.error("[LICENSE FLOW] startup sync failed", { message: error.message });
   });
