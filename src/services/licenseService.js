@@ -33,7 +33,6 @@ const ensureLicenseId = () => {
 const STATUS_MAP = {
   pending_activation: LicenseStatus.PENDING_ACTIVATION,
   pendiente_activacion: LicenseStatus.PENDING_ACTIVATION,
-  demo: LicenseStatus.PENDING_ACTIVATION,
   activa: LicenseStatus.ACTIVE,
   active: LicenseStatus.ACTIVE,
   bloqueada: LicenseStatus.BLOCKED,
@@ -131,11 +130,12 @@ const bootstrapLicenseInstallation = async (nit, installationHash) => {
 
 const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => {
   const status = normalizeStatus(docuCloudData?.estado, dbLicense?.status || LicenseStatus.PENDING_ACTIVATION);
+  const safeStatus = isValidEnum(status, LicenseStatus) ? status : LicenseStatus.PENDING_ACTIVATION;
   const licenseType = normalizeLicenseType(docuCloudData?.tipo_licencia, dbLicense?.licenseType || LicenseType.DEMO);
 
   return {
     nit: docuCloudData?.nit || dbLicense?.nit || "",
-    status,
+    status: safeStatus,
     licenseType,
     applicationName: docuCloudData?.app || APP_NAME,
     version: docuCloudData?.version ?? null,
@@ -178,7 +178,7 @@ const ensureLocalBootstrapLicense = async () => {
   return prisma.license.create({
     data: {
       nit: process.env.LICENSE_DEFAULT_NIT || "",
-      status: LicenseStatus.PENDING_ACTIVATION,
+      status: normalizeStatus(null, LicenseStatus.PENDING_ACTIVATION),
       licenseType: LicenseType.DEMO,
       installationHash,
       activationDate: now,
@@ -260,7 +260,7 @@ const validateWithCentralServer = async (dbLicense) => {
 
 const buildDemoFallback = (installationHash) => ({
   nit: process.env.LICENSE_DEFAULT_NIT || "",
-  status: LicenseStatus.PENDING_ACTIVATION,
+  status: normalizeStatus(null, LicenseStatus.PENDING_ACTIVATION),
   licenseType: LicenseType.DEMO,
   applicationName: APP_NAME,
   version: null,
