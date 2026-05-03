@@ -13,15 +13,19 @@ const LICENSE_DIR = path.join(os.homedir(), ".custodiastock");
 const LICENSE_ID_PATH = path.join(LICENSE_DIR, "license.id");
 
 const ensureLicenseId = () => {
+  const deterministicSeed = [os.hostname(), os.platform(), os.arch()].join("|");
+  const deterministicId = crypto.createHash("sha256").update(deterministicSeed).digest("hex");
+
   if (fs.existsSync(LICENSE_ID_PATH)) {
-    return fs.readFileSync(LICENSE_ID_PATH, "utf8").trim();
+    const existing = fs.readFileSync(LICENSE_ID_PATH, "utf8").trim();
+    if (/^[a-f0-9]{64}$/i.test(existing)) {
+      return existing;
+    }
   }
 
   fs.mkdirSync(LICENSE_DIR, { recursive: true });
-  const fingerprintSeed = [os.hostname(), os.platform(), os.arch(), crypto.randomUUID()].join("|");
-  const persistentId = crypto.createHash("sha256").update(fingerprintSeed).digest("hex");
-  fs.writeFileSync(LICENSE_ID_PATH, persistentId, { encoding: "utf8" });
-  return persistentId;
+  fs.writeFileSync(LICENSE_ID_PATH, deterministicId, { encoding: "utf8" });
+  return deterministicId;
 };
 
 const STATUS_MAP = {
@@ -55,7 +59,9 @@ const addDays = (date, days) => {
 
 const getTeamFingerprint = () => {
   const persistentId = ensureLicenseId();
-  return crypto.createHash("sha256").update(persistentId).digest("hex");
+  const installationHash = crypto.createHash("sha256").update(persistentId).digest("hex");
+  console.log("LICENSE_INSTALLATION_HASH", installationHash);
+  return installationHash;
 };
 
 const buildCentralPayload = (nit, installationHash) => ({ nit, app: APP_NAME, instalacion_hash: installationHash });
@@ -117,7 +123,7 @@ const getCurrentLicense = async () => {
 
 const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
   const installationHash = dbLicense?.installationHash || getTeamFingerprint();
-  const nit = dbLicense?.nit || fallbackNit || process.env.LICENSE_DEFAULT_NIT;
+  const nit = dbLicense?.nit || process.env.LICENSE_DEFAULT_NIT || fallbackNit;
   if (!nit) throw new ApiError(400, "No NIT available for DocuCloud validation");
 
   const payload = buildCentralPayload(nit, installationHash);
