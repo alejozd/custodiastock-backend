@@ -133,7 +133,7 @@ const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => 
   const safeStatus = isValidEnum(status, LicenseStatus) ? status : LicenseStatus.PENDING_ACTIVATION;
   const licenseType = normalizeLicenseType(docuCloudData?.tipo_licencia, dbLicense?.licenseType || LicenseType.DEMO);
 
-  return {
+  const response = {
     nit: docuCloudData?.nit || dbLicense?.nit || "",
     status: safeStatus,
     licenseType,
@@ -144,8 +144,14 @@ const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => 
     daysRemaining: docuCloudData?.dias_restantes ?? null,
     installationHash: docuCloudData?.instalacion_hash || dbLicense?.installationHash || "",
     lastValidationAt: new Date(),
-    offlineMode,
+    offlineMode: Boolean(offlineMode),
   };
+
+  if (!response.status || !isValidEnum(response.status, LicenseStatus)) {
+    response.status = LicenseStatus.PENDING_ACTIVATION;
+  }
+
+  return response;
 };
 
 const persistLicenseCache = async (dbLicense, response, docuCloudData) => {
