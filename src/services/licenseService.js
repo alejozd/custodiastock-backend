@@ -42,7 +42,7 @@ const STATUS_MAP = {
 };
 
 const TYPE_MAP = {
-  demo: LicenseType.DEMO,
+  demo: LicenseStatus.DEMO,
   anual: "ANNUAL",
   annual: "ANNUAL",
   permanente: "PERMANENT",
@@ -52,6 +52,18 @@ const TYPE_MAP = {
 const normalizeEnum = (value, mapping, fallback = null) => {
   if (!value || typeof value !== "string") return fallback;
   return mapping[value.trim().toLowerCase()] || fallback;
+};
+
+const isValidEnum = (value, enumObject) => Object.values(enumObject).includes(value);
+
+const normalizeStatus = (value, fallback = LicenseStatus.BLOCKED) => {
+  const normalized = normalizeEnum(value, STATUS_MAP, fallback);
+  return isValidEnum(normalized, LicenseStatus) ? normalized : fallback;
+};
+
+const normalizeLicenseType = (value, fallback = LicenseType.DEMO) => {
+  const normalized = normalizeEnum(value, TYPE_MAP, fallback);
+  return isValidEnum(normalized, LicenseType) ? normalized : fallback;
 };
 
 const addDays = (date, days) => {
@@ -117,8 +129,8 @@ const bootstrapLicenseInstallation = async (nit, installationHash) => {
 };
 
 const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => {
-  const status = normalizeEnum(docuCloudData?.estado, STATUS_MAP, dbLicense?.status || LicenseStatus.BLOCKED);
-  const licenseType = normalizeEnum(docuCloudData?.tipo_licencia, TYPE_MAP, dbLicense?.licenseType || LicenseType.DEMO);
+  const status = normalizeStatus(docuCloudData?.estado, dbLicense?.status || LicenseStatus.BLOCKED);
+  const licenseType = normalizeLicenseType(docuCloudData?.tipo_licencia, dbLicense?.licenseType || LicenseType.DEMO);
 
   return {
     nit: docuCloudData?.nit || dbLicense?.nit || "",
@@ -136,10 +148,13 @@ const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => 
 };
 
 const persistLicenseCache = async (dbLicense, response, docuCloudData) => {
+  const safeStatus = isValidEnum(response.status, LicenseStatus) ? response.status : LicenseStatus.BLOCKED;
+  const safeLicenseType = isValidEnum(response.licenseType, LicenseType) ? response.licenseType : LicenseType.DEMO;
+
   const data = {
     nit: response.nit,
-    status: response.status,
-    licenseType: response.licenseType,
+    status: safeStatus,
+    licenseType: safeLicenseType,
     activationDate: response.activationDate,
     expirationDate: response.expirationDate,
     installationHash: response.installationHash,
