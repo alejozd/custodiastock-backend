@@ -6,17 +6,8 @@ import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import prismaPkg from "@prisma/client";
 
-const LicenseStatus = {
-  PENDING_ACTIVATION: "PENDING_ACTIVATION",
-  ACTIVE: "ACTIVE",
-  BLOCKED: "BLOCKED",
-};
-
-const LicenseType = {
-  DEMO: "DEMO",
-  ANNUAL: "ANNUAL",
-  PERMANENT: "PERMANENT",
-};
+const LicenseStatus = prismaPkg.LicenseStatus || prismaPkg.$Enums?.LicenseStatus;
+const LicenseType = prismaPkg.LicenseType || prismaPkg.$Enums?.LicenseType;
 
 const OFFLINE_GRACE_DAYS = 7;
 const APP_NAME = "CustodiaStock";
@@ -68,6 +59,29 @@ const normalizeEnum = (value, mapping, fallback = null) => {
 };
 
 const isValidEnum = (value, enumObject) => Object.values(enumObject).includes(value);
+
+const assertValidLicenseEnums = (data) => {
+  const next = { ...data };
+  const statusValid = isValidEnum(next.status, LicenseStatus);
+  const typeValid = isValidEnum(next.licenseType, LicenseType);
+
+  console.log("[LICENSE ENUM FIX] beforeSave", { status: next.status, licenseType: next.licenseType });
+
+  if (!statusValid) {
+    next.status = LicenseStatus.BLOCKED;
+  }
+
+  if (!typeValid) {
+    next.licenseType = LicenseType.DEMO;
+  }
+
+  if (!statusValid || !typeValid) {
+    console.log("[LICENSE ENUM FIX] corrected", { status: next.status, licenseType: next.licenseType });
+    console.log("[LICENSE ENUM FIX] fallbackUsed");
+  }
+
+  return next;
+};
 
 const normalizeStatus = (value, fallback = LicenseStatus.PENDING_ACTIVATION) => {
   const normalized = normalizeEnum(value, STATUS_MAP, fallback);
@@ -201,7 +215,7 @@ const persistLicenseCache = async (dbLicense, response, docuCloudData) => {
   const safeStatus = isValidEnum(response.status, LicenseStatus) ? response.status : LicenseStatus.BLOCKED;
   const safeLicenseType = isValidEnum(response.licenseType, LicenseType) ? response.licenseType : LicenseType.DEMO;
 
-  const data = {
+  const data = assertValidLicenseEnums({
     nit: response.nit,
     status: safeStatus,
     licenseType: safeLicenseType,
@@ -211,7 +225,7 @@ const persistLicenseCache = async (dbLicense, response, docuCloudData) => {
     lastValidation: response.lastValidationAt,
     offlineGraceUntil: addDays(response.lastValidationAt, OFFLINE_GRACE_DAYS),
     licenseToken: JSON.stringify(docuCloudData || {}),
-  };
+  });
 
   if (dbLicense) return prisma.license.update({ where: { id: dbLicense.id }, data });
   return prisma.license.create({ data });
@@ -224,18 +238,18 @@ const ensureLocalBootstrapLicense = async () => {
   if (existing) return existing;
 
   const now = new Date();
-  return prisma.license.create({
-    data: {
-      nit: process.env.LICENSE_DEFAULT_NIT || "",
-      status: normalizeStatus(null, LicenseStatus.PENDING_ACTIVATION),
-      licenseType: LicenseType.DEMO,
-      installationHash,
-      activationDate: now,
-      expirationDate: null,
-      lastValidation: now,
-      offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
-    },
+  const bootstrapData = assertValidLicenseEnums({
+    nit: process.env.LICENSE_DEFAULT_NIT || "",
+    status: LicenseStatus.PENDING_ACTIVATION,
+    licenseType: LicenseType.DEMO,
+    installationHash,
+    activationDate: now,
+    expirationDate: null,
+    lastValidation: now,
+    offlineGraceUntil: addDays(now, OFFLINE_GRACE_DAYS),
   });
+
+  return prisma.license.create({ data: bootstrapData });
 };
 
 const getCurrentLicense = async () => {
