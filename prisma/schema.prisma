@@ -23,11 +23,10 @@ enum EntryStatus {
 }
 
 enum LicenseStatus {
-  PENDING_ACTIVATION
-  DEMO
   ACTIVE
   BLOCKED
-  EXPIRED
+  DEMO
+  PENDING_ACTIVATION
 }
 
 enum LicenseType {

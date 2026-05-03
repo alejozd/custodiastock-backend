@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
+import { LicenseStatus, LicenseType } from "@prisma/client";
 
 const OFFLINE_GRACE_DAYS = 7;
 const APP_NAME = "CustodiaStock";
@@ -29,19 +30,19 @@ const ensureLicenseId = () => {
 };
 
 const STATUS_MAP = {
-  pending_activation: "PENDING_ACTIVATION",
-  pendiente_activacion: "PENDING_ACTIVATION",
-  demo: "DEMO",
-  activa: "ACTIVE",
-  active: "ACTIVE",
-  bloqueada: "BLOCKED",
-  blocked: "BLOCKED",
-  expirada: "BLOCKED",
-  expired: "BLOCKED",
+  pending_activation: LicenseStatus.PENDING_ACTIVATION,
+  pendiente_activacion: LicenseStatus.PENDING_ACTIVATION,
+  demo: LicenseType.DEMO,
+  activa: LicenseStatus.ACTIVE,
+  active: LicenseStatus.ACTIVE,
+  bloqueada: LicenseStatus.BLOCKED,
+  blocked: LicenseStatus.BLOCKED,
+  expirada: LicenseStatus.BLOCKED,
+  expired: LicenseStatus.BLOCKED,
 };
 
 const TYPE_MAP = {
-  demo: "DEMO",
+  demo: LicenseType.DEMO,
   anual: "ANNUAL",
   annual: "ANNUAL",
   permanente: "PERMANENT",
@@ -116,8 +117,8 @@ const bootstrapLicenseInstallation = async (nit, installationHash) => {
 };
 
 const buildLicenseResponse = (dbLicense, docuCloudData, offlineMode = false) => {
-  const status = normalizeEnum(docuCloudData?.estado, STATUS_MAP, dbLicense?.status || "BLOCKED");
-  const licenseType = normalizeEnum(docuCloudData?.tipo_licencia, TYPE_MAP, dbLicense?.licenseType || "DEMO");
+  const status = normalizeEnum(docuCloudData?.estado, STATUS_MAP, dbLicense?.status || LicenseStatus.BLOCKED);
+  const licenseType = normalizeEnum(docuCloudData?.tipo_licencia, TYPE_MAP, dbLicense?.licenseType || LicenseType.DEMO);
 
   return {
     nit: docuCloudData?.nit || dbLicense?.nit || "",
@@ -161,8 +162,8 @@ const ensureLocalBootstrapLicense = async () => {
   return prisma.license.create({
     data: {
       nit: process.env.LICENSE_DEFAULT_NIT || "",
-      status: "PENDING_ACTIVATION",
-      licenseType: "DEMO",
+      status: LicenseStatus.PENDING_ACTIVATION,
+      licenseType: LicenseType.DEMO,
       installationHash,
       activationDate: now,
       expirationDate: null,
@@ -233,18 +234,18 @@ const validateWithCentralServer = async (dbLicense) => {
       return buildLicenseResponse(saved, cachedRaw, true);
     }
 
-    const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
+    const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: LicenseStatus.BLOCKED, lastValidation: now } });
     logFlow({ dbLicense: blocked, nit: blocked.nit, installationHash: blocked.installationHash, source: "db" });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
-    return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
+    return buildLicenseResponse({ ...blocked, status: LicenseStatus.BLOCKED }, cachedRaw, true);
   }
 };
 
 
 const buildDemoFallback = (installationHash) => ({
   nit: process.env.LICENSE_DEFAULT_NIT || "",
-  status: "PENDING_ACTIVATION",
-  licenseType: "DEMO",
+  status: LicenseStatus.PENDING_ACTIVATION,
+  licenseType: LicenseType.DEMO,
   applicationName: APP_NAME,
   version: null,
   activationDate: null,
@@ -271,12 +272,12 @@ const getLicenseStatusSynced = async () => {
   if (!dbLicense.nit || dbLicense.nit.trim() === "") {
     console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
     return {
-      ...buildLicenseResponse({ ...dbLicense, status: "PENDING_ACTIVATION" }, null, false),
+      ...buildLicenseResponse({ ...dbLicense, status: LicenseStatus.PENDING_ACTIVATION }, null, false),
       message: "Debe ingresar NIT para activar licencia",
     };
   }
 
-  if (dbLicense.status === "PENDING_ACTIVATION") {
+  if (dbLicense.status === LicenseStatus.PENDING_ACTIVATION) {
     console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
     return {
       ...buildLicenseResponse(dbLicense, null, false),
@@ -284,7 +285,7 @@ const getLicenseStatusSynced = async () => {
     };
   }
 
-  if (dbLicense.status === "DEMO") {
+  if (dbLicense.status === LicenseStatus.DEMO) {
     return buildLicenseResponse(dbLicense, null, false);
   }
 
@@ -303,9 +304,9 @@ const getLicenseStatusSynced = async () => {
       return buildLicenseResponse(saved, cachedRaw, true);
     }
 
-    const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: "BLOCKED", lastValidation: now } });
+    const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: LicenseStatus.BLOCKED, lastValidation: now } });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
-    return buildLicenseResponse({ ...blocked, status: "BLOCKED" }, cachedRaw, true);
+    return buildLicenseResponse({ ...blocked, status: LicenseStatus.BLOCKED }, cachedRaw, true);
   }
 
   return buildLicenseResponse(dbLicense, null, false);
@@ -317,7 +318,7 @@ const activateLicense = async ({ nit }) => {
   const dbLicense = await ensureLocalBootstrapLicense();
   console.log("[LICENSE FLOW] state=ACTIVATING");
   const docuCloudData = await postDocuCloud("/api/licencias/activar-online", buildCentralPayload(nit.trim(), installationHash));
-  const response = buildLicenseResponse({ ...dbLicense, nit: nit.trim(), status: "ACTIVE" }, docuCloudData, false);
+  const response = buildLicenseResponse({ ...dbLicense, nit: nit.trim(), status: LicenseStatus.ACTIVE }, docuCloudData, false);
   await persistLicenseCache(dbLicense, response, docuCloudData);
   console.log("[LICENSE FLOW] state=ACTIVE");
   return response;
@@ -325,7 +326,7 @@ const activateLicense = async ({ nit }) => {
 
 const initializeLicense = async () => {
   const dbLicense = await ensureLocalBootstrapLicense();
-  if (!dbLicense.nit || dbLicense.status === "PENDING_ACTIVATION") {
+  if (!dbLicense.nit || dbLicense.status === LicenseStatus.PENDING_ACTIVATION) {
     console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
     return buildLicenseResponse(dbLicense, null, false);
   }
