@@ -4,12 +4,14 @@ import fs from "fs";
 import path from "path";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
+import { logger } from "../utils/logger.js";
 import prismaPkg from "@prisma/client";
 
 const LicenseStatus = prismaPkg.LicenseStatus || prismaPkg.$Enums?.LicenseStatus;
 const LicenseType = prismaPkg.LicenseType || prismaPkg.$Enums?.LicenseType;
 
 const OFFLINE_GRACE_DAYS = 7;
+let installationHashLogged = false;
 const APP_NAME = "CustodiaStock";
 const DOCUCLOUD_URL = "https://api.zdevs.uk";
 
@@ -65,7 +67,7 @@ const assertValidLicenseEnums = (data) => {
   const statusValid = isValidEnum(next.status, LicenseStatus);
   const typeValid = isValidEnum(next.licenseType, LicenseType);
 
-  console.log("[LICENSE ENUM FIX] beforeSave", { status: next.status, licenseType: next.licenseType });
+  logger.debug("LICENSE", "ENUM FIX beforeSave", { status: next.status, licenseType: next.licenseType });
 
   if (!statusValid) {
     next.status = LicenseStatus.BLOCKED;
@@ -76,8 +78,8 @@ const assertValidLicenseEnums = (data) => {
   }
 
   if (!statusValid || !typeValid) {
-    console.log("[LICENSE ENUM FIX] corrected", { status: next.status, licenseType: next.licenseType });
-    console.log("[LICENSE ENUM FIX] fallbackUsed");
+    logger.debug("LICENSE", "ENUM FIX corrected", { status: next.status, licenseType: next.licenseType });
+    logger.debug("LICENSE", "ENUM FIX fallbackUsed");
   }
 
   return next;
@@ -102,7 +104,10 @@ const addDays = (date, days) => {
 const getTeamFingerprint = () => {
   const persistentId = ensureLicenseId();
   const installationHash = crypto.createHash("sha256").update(persistentId).digest("hex");
-  console.log("LICENSE_INSTALLATION_HASH", installationHash);
+  if (!installationHashLogged) {
+    logger.debug("LICENSE", "INSTALLATION_HASH", { installationHash });
+    installationHashLogged = true;
+  }
   return installationHash;
 };
 
@@ -110,7 +115,7 @@ const buildCentralPayload = (nit, installationHash) => ({ nit, app: APP_NAME, in
 const getServerUrl = () => (process.env.LICENSE_SERVER_URL || DOCUCLOUD_URL).replace(/\/$/, "");
 
 const logFlow = ({ dbLicense, nit, installationHash, source }) => {
-  console.log("[LICENSE FLOW] step:", {
+  logger.info("LICENSE", "FLOW", {
     hasDb: !!dbLicense,
     nit: nit || null,
     installationHash,
@@ -270,9 +275,9 @@ const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
     const payload = buildCentralPayload(nit, installationHash);
     const docuCloudData = await postDocuCloud("/api/licencias/validar", payload);
     const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
-    console.log("SOURCE=DOCUCLOUD");
+    logger.info("LICENSE", "SOURCE=DOCUCLOUD");
     if (response.status === LicenseStatus.BLOCKED) {
-      console.log("[LICENSE FLOW] Remote status BLOCKED applied locally");
+      logger.info("LICENSE", "state=BLOCKED from DocuCloud");
     }
     await persistLicenseCache(dbLicense, response, docuCloudData);
     return response;
@@ -281,7 +286,7 @@ const syncLicenseWithDocuCloud = async (dbLicense, fallbackNit) => {
       const bootstrapped = await bootstrapLicenseInstallation(nit, installationHash);
       if (bootstrapped) {
         const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, bootstrapped, false);
-        console.log("SOURCE=DOCUCLOUD");
+        logger.info("LICENSE", "SOURCE=DOCUCLOUD");
         await persistLicenseCache(dbLicense, response, bootstrapped);
         return response;
       }
@@ -297,7 +302,7 @@ const registerLicense = async ({ nit }) => {
   const payload = buildCentralPayload(nit, installationHash);
   const docuCloudData = await postDocuCloud("/api/licencias/activar-online", payload);
   const response = buildDocuCloudResponse({ ...dbLicense, nit, installationHash }, docuCloudData, false);
-  console.log("SOURCE=DOCUCLOUD");
+  logger.info("LICENSE", "SOURCE=DOCUCLOUD");
   await persistLicenseCache(dbLicense, response, docuCloudData);
   return response;
 };
@@ -319,14 +324,14 @@ const validateWithCentralServer = async (dbLicense) => {
     if (offlineValid) {
       const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
       const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
-      console.log("SOURCE=OFFLINE_MODE");
+      logger.warn("LICENSE", "SOURCE=OFFLINE_MODE");
       return buildLicenseResponse(saved, cachedRaw, true);
     }
 
     const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: LicenseStatus.BLOCKED, lastValidation: now } });
     logFlow({ dbLicense: blocked, nit: blocked.nit, installationHash: blocked.installationHash, source: "db" });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
-    console.log("SOURCE=LOCAL_CACHE");
+    logger.info("LICENSE", "SOURCE=LOCAL_CACHE");
     return buildLicenseResponse({ ...blocked, status: LicenseStatus.BLOCKED }, cachedRaw, true);
   }
 };
@@ -352,21 +357,21 @@ const getLicenseStatusSynced = async () => {
 
   if (!dbLicense) {
     dbLicense = await ensureLocalBootstrapLicense();
-    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    logger.info("LICENSE", "state=PENDING_ACTIVATION");
     const response = buildLicenseResponse(dbLicense, null, false);
     if (!response.status) response.status = LicenseStatus.PENDING_ACTIVATION;
     return { ...response, message: "Debe ingresar NIT para activar licencia" };
   }
 
   if (!dbLicense.nit || dbLicense.nit.trim() === "") {
-    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    logger.info("LICENSE", "state=PENDING_ACTIVATION");
     const response = buildLicenseResponse({ ...dbLicense, status: LicenseStatus.PENDING_ACTIVATION }, null, false);
     if (!response.status) response.status = LicenseStatus.PENDING_ACTIVATION;
     return { ...response, message: "Debe ingresar NIT para activar licencia" };
   }
 
   if (dbLicense.status === LicenseStatus.PENDING_ACTIVATION) {
-    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    logger.info("LICENSE", "state=PENDING_ACTIVATION");
     const response = buildLicenseResponse(dbLicense, null, false);
     if (!response.status) response.status = LicenseStatus.PENDING_ACTIVATION;
     return { ...response, message: "Debe ingresar NIT para activar licencia" };
@@ -375,7 +380,7 @@ const getLicenseStatusSynced = async () => {
   try {
     const synced = await syncLicenseWithDocuCloud(dbLicense, process.env.LICENSE_DEFAULT_NIT);
     if (synced) {
-      console.log("[LICENSE FLOW] state=ACTIVE");
+      logger.info("LICENSE", "state=ACTIVE");
       return synced;
     }
   } catch (error) {
@@ -387,13 +392,13 @@ const getLicenseStatusSynced = async () => {
     if (offlineValid) {
       const saved = await prisma.license.update({ where: { id: dbLicense.id }, data: { lastValidation: now } });
       const cachedRaw = saved.licenseToken ? JSON.parse(saved.licenseToken) : null;
-      console.log("SOURCE=OFFLINE_MODE");
+      logger.warn("LICENSE", "SOURCE=OFFLINE_MODE");
       return buildLicenseResponse(saved, cachedRaw, true);
     }
 
     const blocked = await prisma.license.update({ where: { id: dbLicense.id }, data: { status: LicenseStatus.BLOCKED, lastValidation: now } });
     const cachedRaw = blocked.licenseToken ? JSON.parse(blocked.licenseToken) : null;
-    console.log("SOURCE=LOCAL_CACHE");
+    logger.info("LICENSE", "SOURCE=LOCAL_CACHE");
     return buildLicenseResponse({ ...blocked, status: LicenseStatus.BLOCKED }, cachedRaw, true);
   }
 
@@ -404,19 +409,19 @@ const activateLicense = async ({ nit }) => {
   if (!nit || !nit.trim()) throw new ApiError(400, "NIT is required for activation");
   const installationHash = getTeamFingerprint();
   const dbLicense = await ensureLocalBootstrapLicense();
-  console.log("[LICENSE FLOW] state=ACTIVATING");
+  logger.info("LICENSE", "state=ACTIVATING");
   const docuCloudData = await postDocuCloud("/api/licencias/activar-online", buildCentralPayload(nit.trim(), installationHash));
   const response = buildDocuCloudResponse({ ...dbLicense, nit: nit.trim(), status: LicenseStatus.ACTIVE }, docuCloudData, false);
-  console.log("SOURCE=DOCUCLOUD");
+  logger.info("LICENSE", "SOURCE=DOCUCLOUD");
   await persistLicenseCache(dbLicense, response, docuCloudData);
-  console.log("[LICENSE FLOW] state=ACTIVE");
+  logger.info("LICENSE", "state=ACTIVE");
   return response;
 };
 
 const initializeLicense = async () => {
   const dbLicense = await ensureLocalBootstrapLicense();
   if (!dbLicense.nit || dbLicense.status === LicenseStatus.PENDING_ACTIVATION) {
-    console.log("[LICENSE FLOW] state=PENDING_ACTIVATION");
+    logger.info("LICENSE", "state=PENDING_ACTIVATION");
     return buildLicenseResponse(dbLicense, null, false);
   }
   validateWithCentralServer(dbLicense).catch((error) => {

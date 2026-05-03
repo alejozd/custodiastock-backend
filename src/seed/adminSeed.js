@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { logger } from "../utils/logger.js";
 
 const prisma = new PrismaClient();
 const username = process.env.ADMIN_USER;
@@ -18,7 +19,7 @@ async function ensureSequences() {
 
     if (!existing) {
       await prisma.sequence.create({ data: seq });
-      console.log(`Secuencia '${seq.name}' creada.`);
+      logger.info("DB", `Secuencia ${seq.name} creada.`);
     }
   }
 }
@@ -30,9 +31,9 @@ async function createUserIfNotExists(userData) {
 
   if (existing) {
     if (userData.username === "admin") {
-      console.log("USER SEED EXISTS: admin");
+      logger.debug("AUTH", "USER SEED EXISTS: admin");
     } else {
-      console.log(`USER SEED EXISTS: ${userData.username}`);
+      logger.debug("AUTH", `USER SEED EXISTS: ${userData.username}`);
     }
     return existing;
   }
@@ -51,9 +52,9 @@ async function createUserIfNotExists(userData) {
   });
 
   if (userData.username === "admin") {
-    console.log("USER SEED CREATED: admin");
+    logger.debug("AUTH", "USER SEED CREATED: admin");
   } else {
-    console.log(`USER SEED CREATED: ${userData.username}`);
+    logger.debug("AUTH", `USER SEED CREATED: ${userData.username}`);
   }
 
   return createdUser;
