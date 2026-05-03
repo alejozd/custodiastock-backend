@@ -1,11 +1,28 @@
 import crypto from "crypto";
 import os from "os";
+import fs from "fs";
+import path from "path";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 
 const OFFLINE_GRACE_DAYS = 7;
 const APP_NAME = "CustodiaStock";
 const DOCUCLOUD_URL = "https://api.zdevs.uk";
+
+const LICENSE_DIR = path.join(os.homedir(), ".custodiastock");
+const LICENSE_ID_PATH = path.join(LICENSE_DIR, "license.id");
+
+const ensureLicenseId = () => {
+  if (fs.existsSync(LICENSE_ID_PATH)) {
+    return fs.readFileSync(LICENSE_ID_PATH, "utf8").trim();
+  }
+
+  fs.mkdirSync(LICENSE_DIR, { recursive: true });
+  const fingerprintSeed = [os.hostname(), os.platform(), os.arch(), crypto.randomUUID()].join("|");
+  const persistentId = crypto.createHash("sha256").update(fingerprintSeed).digest("hex");
+  fs.writeFileSync(LICENSE_ID_PATH, persistentId, { encoding: "utf8" });
+  return persistentId;
+};
 
 const STATUS_MAP = {
   demo: "DEMO",
@@ -37,10 +54,8 @@ const addDays = (date, days) => {
 };
 
 const getTeamFingerprint = () => {
-  const networkInfo = os.networkInterfaces();
-  const macs = Object.values(networkInfo).flat().filter(Boolean).map((item) => item.mac).filter(Boolean).sort();
-  const payload = [os.hostname(), os.platform(), os.arch(), ...macs].join("|");
-  return crypto.createHash("sha256").update(payload).digest("hex");
+  const persistentId = ensureLicenseId();
+  return crypto.createHash("sha256").update(persistentId).digest("hex");
 };
 
 const buildCentralPayload = (nit, installationHash) => ({ nit, app: APP_NAME, instalacion_hash: installationHash });
