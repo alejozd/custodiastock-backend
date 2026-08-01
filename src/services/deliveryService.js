@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import { ensureSequenceAdvanced, peekNextNumber } from "./sequenceService.js";
+import { calculateAvailableStock } from "./stockCalculator.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
@@ -163,26 +164,68 @@ export const createDelivery = async (payload) => {
     throw new ApiError(400, "ReceivedBy user does not exist or is inactive");
   }
 
-  try {
-    const delivery = await prisma.delivery.create({
-      data: {
-        documentNumber: payload.documentNumber,
-        deliveredById: payload.deliveredById,
-        receivedById: payload.receivedById,
-        signatureImage: payload.signatureImage,
-        deliveryDate: new Date(payload.deliveryDate),
-        items: {
-          create: payload.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-          })),
-        },
-      },
-      include: deliveryInclude,
-    });
+  // Aggregate requested quantity per product in case the same product
+  // appears in more than one line item of the same delivery.
+  const requestedByProduct = payload.items.reduce((acc, item) => {
+    acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
+    return acc;
+  }, {});
 
-    // Advance sequence if necessary
-    await ensureSequenceAdvanced("ENTREGA", payload.documentNumber);
+  try {
+    const delivery = await prisma.$transaction(
+      async (tx) => {
+        // Uses the same calculateAvailableStock helper as
+        // productService.getProductStockReport, run with this transaction's
+        // `tx` so the read stays consistent with the delivery being created
+        // below. Serializable isolation (below) is what actually closes the
+        // race: it makes MySQL abort one of two conflicting concurrent
+        // transactions instead of letting both read the same stock snapshot
+        // and commit.
+        const { availableStock: availableStockByProduct } =
+          await calculateAvailableStock(tx, uniqueProductIds);
+
+        for (const [productIdStr, requestedQuantity] of Object.entries(
+          requestedByProduct,
+        )) {
+          const productId = Number(productIdStr);
+          const availableStock = availableStockByProduct[productId] || 0;
+
+          if (requestedQuantity > availableStock) {
+            const product = products.find((p) => p.id === productId);
+            const productLabel = product
+              ? `${product.name} (${product.reference})`
+              : `product ${productId}`;
+            throw new ApiError(
+              400,
+              `Insufficient stock for ${productLabel}: requested ${requestedQuantity}, available ${availableStock}`,
+            );
+          }
+        }
+
+        const createdDelivery = await tx.delivery.create({
+          data: {
+            documentNumber: payload.documentNumber,
+            deliveredById: payload.deliveredById,
+            receivedById: payload.receivedById,
+            signatureImage: payload.signatureImage,
+            deliveryDate: new Date(payload.deliveryDate),
+            items: {
+              create: payload.items.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+              })),
+            },
+          },
+          include: deliveryInclude,
+        });
+
+        // Advance sequence if necessary, atomically with the delivery creation
+        await ensureSequenceAdvanced("ENTREGA", payload.documentNumber, tx);
+
+        return createdDelivery;
+      },
+      { isolationLevel: "Serializable" },
+    );
 
     return mapDeliveryResponse(delivery);
   } catch (error) {
@@ -196,6 +239,17 @@ export const createDelivery = async (payload) => {
         suggestedNumber: nextSuggested,
       });
     }
+
+    // Serializable isolation makes MySQL abort one side of a genuine
+    // concurrent conflict (e.g. two deliveries racing on the same
+    // product's stock) instead of letting both commit an oversold state.
+    if (error.code === "P2034") {
+      throw new ApiError(
+        409,
+        "This delivery conflicted with another concurrent operation on the same product. Please try again.",
+      );
+    }
+
     throw error;
   }
 };

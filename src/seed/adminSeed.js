@@ -63,6 +63,11 @@ async function createUserIfNotExists(userData) {
 export async function ensureAdminUser() {
   await ensureSequences();
 
+  const isProduction = process.env.NODE_ENV === "production";
+  const seedAdminForced = process.env.SEED_ADMIN === "true";
+
+  // Operator-supplied admin (from ADMIN_USER/ADMIN_PASSWORD) is always allowed:
+  // it is not a public backdoor, it is the deployment's own bootstrap credential.
   if (username && password) {
     await createUserIfNotExists({
       username,
@@ -74,9 +79,19 @@ export async function ensureAdminUser() {
     });
   }
 
+  // The hardcoded "admin/admin123*" fallback is only safe outside production,
+  // or when explicitly forced via SEED_ADMIN=true.
+  if (isProduction && !seedAdminForced) {
+    logger.info(
+      "AUTH",
+      "Default 'admin' user seeding skipped (NODE_ENV=production and SEED_ADMIN is not 'true').",
+    );
+    return;
+  }
+
   await createUserIfNotExists({
     username: "admin",
-    password: "admin123*",
+    password: process.env.ADMIN_DEFAULT_PASSWORD || "admin123*",
     fullName: "System Admin",
     email: "admin@local.dev",
     role: "ADMIN",

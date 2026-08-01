@@ -16,7 +16,12 @@ import { roleMiddleware } from "../middleware/roleMiddleware.js";
 const router = express.Router();
 
 router.post("/", asyncHandler(createProductController));
-router.post("/import", upload.single("file"), importProductsController);
+router.post(
+  "/import",
+  roleMiddleware(["ADMIN"]),
+  upload.single("file"),
+  importProductsController
+);
 router.get("/", asyncHandler(getProductsController));
 router.get(
   "/stock-report",
@@ -29,7 +34,15 @@ router.get(
   asyncHandler(getProductMovementsController)
 );
 router.get("/:id", asyncHandler(getProductByIdController));
-router.put("/:id", asyncHandler(updateProductController));
-router.delete("/:id", asyncHandler(deleteProductController));
+router.put(
+  "/:id",
+  roleMiddleware(["ADMIN"]),
+  asyncHandler(updateProductController)
+);
+router.delete(
+  "/:id",
+  roleMiddleware(["ADMIN"]),
+  asyncHandler(deleteProductController)
+);
 
 export default router;

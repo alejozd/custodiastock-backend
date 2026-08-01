@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
 import { hashPassword, verifyPassword } from "../utils/hash.js";
+import { logger } from "../utils/logger.js";
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -16,8 +17,25 @@ if (!process.env.JWT_SECRET && !IS_PRODUCTION) {
   );
 }
 
-if (!JWT_SECRET && IS_PRODUCTION) {
-  console.error("[Auth] JWT_SECRET is required in production mode.");
+// Fixed bcrypt hash (cost 10, matches SALT_ROUNDS in utils/hash.js) with no
+// corresponding real password. Used only to run a bcrypt comparison when a
+// login username doesn't exist, so the response time is similar to the
+// "user exists but wrong password" case and doesn't leak whether a given
+// username exists via timing.
+const DUMMY_PASSWORD_HASH =
+  "$2b$10$K6rXqdb0NaBbnNhxWHJGZODn8oe/wuGYtE8VVli3crxl.f9ue.F2m";
+
+/**
+ * Throws if JWT_SECRET is not configured in production mode. Does not log or
+ * exit the process itself — callers (the real server startup, in
+ * src/server.js) decide how to react, so importing this module never has
+ * process-killing side effects for scripts, workers, or tests that only need
+ * e.g. `verifyAccessToken`.
+ */
+export function assertJwtSecretConfigured() {
+  if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET is required in production mode.");
+  }
 }
 
 const buildTokenPayload = (user) => ({
@@ -39,6 +57,11 @@ export const login = async ({ username, password }) => {
   });
 
   if (!user || user.deletedAt) {
+    // Run a bcrypt comparison against a dummy hash even though there's no
+    // real user to check, so this path takes roughly as long as the
+    // "wrong password" path below and a caller can't infer whether
+    // `username` exists just by measuring response time.
+    await verifyPassword(password, DUMMY_PASSWORD_HASH);
     throw new ApiError(401, "Invalid credentials");
   }
 
@@ -48,7 +71,8 @@ export const login = async ({ username, password }) => {
   }
 
   if (!user.active) {
-    throw new ApiError(403, "User is inactive");
+    logger.warn("AUTH", `Login blocked: user '${username}' is inactive`);
+    throw new ApiError(401, "Invalid credentials");
   }
 
   if (!JWT_SECRET) {

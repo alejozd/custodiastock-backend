@@ -78,10 +78,13 @@ export const getSequenceById = async (id) => {
 /**
  * Ensures the sequence is advanced beyond the used number.
  * Useful when a number is manually provided or a conflict was resolved.
+ * @param {string} name - The name of the sequence (e.g., 'ENTREGA', 'ENTRADA').
+ * @param {string} usedNumberStr - The document number that was actually used/provided (e.g., "ENT-000001").
+ * @param {import("@prisma/client").PrismaClient | import("@prisma/client").Prisma.TransactionClient} [tx=prisma] - Prisma client or transaction to run the update with. Defaults to the shared `prisma` client for standalone calls; callers that need this advance to be atomic with other writes (entryService/deliveryService, which create the entry/delivery in the same transaction) pass their transaction's `tx` client instead.
  */
-export const ensureSequenceAdvanced = async (name, usedNumberStr) => {
+export const ensureSequenceAdvanced = async (name, usedNumberStr, tx = prisma) => {
   // Extract the numeric part from the string (e.g., "ENT-000001" -> 1)
-  const sequence = await prisma.sequence.findUnique({ where: { name } });
+  const sequence = await tx.sequence.findUnique({ where: { name } });
   if (!sequence) return;
 
   const prefix = sequence.prefix;
@@ -91,7 +94,7 @@ export const ensureSequenceAdvanced = async (name, usedNumberStr) => {
   if (isNaN(numericPart)) return;
 
   if (numericPart >= sequence.nextNumber) {
-    await prisma.sequence.update({
+    await tx.sequence.update({
       where: { id: sequence.id },
       data: { nextNumber: numericPart + 1 },
     });

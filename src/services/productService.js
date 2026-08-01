@@ -1,6 +1,8 @@
+import fs from "fs";
 import XLSX from "xlsx";
 import prisma from "../config/prisma.js";
 import { ApiError } from "../utils/apiError.js";
+import { calculateAvailableStock } from "./stockCalculator.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
@@ -66,9 +68,41 @@ const parseActiveValue = (value) => {
   throw new Error("active must be true/false");
 };
 
+// A real .xlsx file is a ZIP archive: it must start with the local file
+// header signature "PK\x03\x04", or "PK\x05\x06" for an empty archive.
+// Extension/mimetype checks alone (done in uploadMiddleware) can be spoofed,
+// so we verify the actual file content before handing it to the XLSX parser.
+const ZIP_SIGNATURES = [
+  Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+  Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+];
+
+const hasValidXlsxSignature = (filePath) => {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, "r");
+    const header = Buffer.alloc(4);
+    const bytesRead = fs.readSync(fd, header, 0, 4, 0);
+    if (bytesRead < 4) {
+      return false;
+    }
+    return ZIP_SIGNATURES.some((signature) => header.equals(signature));
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) {
+      fs.closeSync(fd);
+    }
+  }
+};
+
 export const importProductsFromExcel = async (filePath) => {
   if (!filePath) {
     throw new ApiError(400, "Excel file path is required");
+  }
+
+  if (!hasValidXlsxSignature(filePath)) {
+    throw new ApiError(400, "Archivo inválido: no es un .xlsx real");
   }
 
   const workbook = XLSX.readFile(filePath);
@@ -245,25 +279,12 @@ export const deleteProduct = async (id) => {
 export const getProductStockReport = async (filters = {}) => {
   const { startDate, endDate } = filters;
 
-  const entryWhere = {
-    deletedAt: null,
-    entry: {
-      status: "ACTIVE",
-      deletedAt: null,
-    },
-  };
-
-  const deliveryWhere = {
-    deletedAt: null,
-    delivery: {
-      status: "ACTIVE",
-      deletedAt: null,
-    },
-  };
+  let entryDateFilter;
+  let deliveryDateFilter;
 
   if (startDate || endDate) {
-    const entryDateFilter = {};
-    const deliveryDateFilter = {};
+    entryDateFilter = {};
+    deliveryDateFilter = {};
 
     if (startDate) {
       const start = dayjs.tz(startDate, COLOMBIA_TZ).startOf("day").toDate();
@@ -275,9 +296,6 @@ export const getProductStockReport = async (filters = {}) => {
       entryDateFilter.lte = end;
       deliveryDateFilter.lte = end;
     }
-
-    entryWhere.entry.entryDate = entryDateFilter;
-    deliveryWhere.delivery.deliveryDate = deliveryDateFilter;
   }
 
   // Get all active products first to ensure we show products even with 0 stock
@@ -290,28 +308,13 @@ export const getProductStockReport = async (filters = {}) => {
     },
   });
 
-  const [entriesByProduct, deliveriesByProduct] = await Promise.all([
-    prisma.entryItem.groupBy({
-      by: ["productId"],
-      _sum: { quantity: true },
-      where: entryWhere,
-    }),
-    prisma.deliveryItem.groupBy({
-      by: ["productId"],
-      _sum: { quantity: true },
-      where: deliveryWhere,
-    }),
-  ]);
+  const productIds = products.map((product) => product.id);
 
-  const entriesMap = entriesByProduct.reduce((acc, curr) => {
-    acc[curr.productId] = curr._sum.quantity || 0;
-    return acc;
-  }, {});
-
-  const deliveriesMap = deliveriesByProduct.reduce((acc, curr) => {
-    acc[curr.productId] = curr._sum.quantity || 0;
-    return acc;
-  }, {});
+  const { entriesMap, deliveriesMap, availableStock } =
+    await calculateAvailableStock(prisma, productIds, {
+      entryDateFilter,
+      deliveryDateFilter,
+    });
 
   return products.map((product) => {
     const totalEntries = entriesMap[product.id] || 0;
@@ -322,7 +325,7 @@ export const getProductStockReport = async (filters = {}) => {
       reference: product.reference,
       totalEntries,
       totalDeliveries,
-      stock: totalEntries - totalDeliveries,
+      stock: availableStock[product.id] || 0,
     };
   });
 };

@@ -29,7 +29,11 @@ export const getDeliveryByIdController = async (req, res) => {
 };
 
 export const cancelDeliveryController = async (req, res) => {
-  const delivery = await cancelDelivery(Number(req.params.id), req.body);
+  const payload = {
+    ...req.body,
+    adminUserId: req.user.id,
+  };
+  const delivery = await cancelDelivery(Number(req.params.id), payload);
   res.json(delivery);
 };
 

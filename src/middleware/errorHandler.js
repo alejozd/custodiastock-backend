@@ -1,3 +1,5 @@
+import { ApiError } from "../utils/apiError.js";
+import { logger } from "../utils/logger.js";
 
 const mapUploadError = (error) => {
   if (error?.name !== "MulterError") {
@@ -26,7 +28,6 @@ const mapPrismaError = (error) => {
         "Database schema is not synchronized. Run 'npm run prisma:sync' and restart the API.",
       details: {
         prismaCode: error.code,
-        meta: error.meta,
       },
     };
   }
@@ -39,7 +40,29 @@ const mapPrismaError = (error) => {
         "Database columns are out of sync. Run 'npm run prisma:sync' and restart the API.",
       details: {
         prismaCode: error.code,
-        meta: error.meta,
+      },
+    };
+  }
+
+  // P2003: foreign key constraint violation
+  if (error?.code === "P2003") {
+    return {
+      statusCode: 400,
+      message:
+        "Cannot complete this operation: related records exist or reference is invalid.",
+      details: {
+        prismaCode: error.code,
+      },
+    };
+  }
+
+  // P2025: record not found (e.g. required relation missing)
+  if (error?.code === "P2025") {
+    return {
+      statusCode: 404,
+      message: "The requested record was not found.",
+      details: {
+        prismaCode: error.code,
       },
     };
   }
@@ -62,9 +85,23 @@ export const errorHandler = (error, req, res, next) => {
   const mappedError = uploadMapped || prismaMapped;
 
   const statusCode = mappedError?.statusCode || error.statusCode || 500;
-  const payload = {
-    message: mappedError?.message || error.message || "Internal server error",
-  };
+
+  logger.error("HTTP", error.message, {
+    stack: error.stack,
+    code: error.code,
+    meta: error.meta,
+  });
+
+  let message;
+  if (mappedError?.message) {
+    message = mappedError.message;
+  } else if (error instanceof ApiError) {
+    message = error.message;
+  } else {
+    message = "Internal server error";
+  }
+
+  const payload = { message };
 
   if (prismaMapped?.details || error.details) {
     payload.details = prismaMapped?.details || error.details;

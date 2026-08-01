@@ -141,24 +141,28 @@ export const createEntry = async (payload) => {
   }
 
   try {
-    const entry = await prisma.entry.create({
-      data: {
-        documentNumber: payload.documentNumber,
-        sourceDocument: payload.sourceDocument,
-        userId: payload.userId,
-        entryDate: new Date(payload.entryDate),
-        items: {
-          create: payload.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-          })),
+    const entry = await prisma.$transaction(async (tx) => {
+      const createdEntry = await tx.entry.create({
+        data: {
+          documentNumber: payload.documentNumber,
+          sourceDocument: payload.sourceDocument,
+          userId: payload.userId,
+          entryDate: new Date(payload.entryDate),
+          items: {
+            create: payload.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+            })),
+          },
         },
-      },
-      include: entryInclude,
-    });
+        include: entryInclude,
+      });
 
-    // Advance sequence if necessary
-    await ensureSequenceAdvanced("ENTRADA", payload.documentNumber);
+      // Advance sequence if necessary, atomically with the entry creation
+      await ensureSequenceAdvanced("ENTRADA", payload.documentNumber, tx);
+
+      return createdEntry;
+    });
 
     return mapEntryResponse(entry);
   } catch (error) {

@@ -1,53 +1,28 @@
 import { PrismaClient } from "@prisma/client";
+import { logger } from "../utils/logger.js";
 
-const prismaClient = new PrismaClient();
+const prisma = new PrismaClient();
 
-const modelAliases = {
-  user: ["user", "usuario"],
-  product: ["product", "producto"],
-  delivery: ["delivery", "entrega"],
-  sequence: ["sequence", "secuencia"],
-  entry: ["entry", "entrada"],
-  entryItem: ["entryItem", "detalleEntrada"],
-  license: ["license", "licencia"],
-};
+// Fail loudly at startup, not on the first real request, if the generated
+// Prisma Client is out of sync with the schema (e.g. someone forgot to run
+// `npx prisma generate` after a migration).
+const expectedModels = [
+  "user",
+  "product",
+  "entry",
+  "entryItem",
+  "delivery",
+  "deliveryItem",
+  "sequence",
+  "license",
+];
 
-const prisma = new Proxy(prismaClient, {
-  get(target, prop, receiver) {
-    if (typeof prop === "string") {
-      // Check if prop is a canonical name
-      if (modelAliases[prop]) {
-        for (const candidate of modelAliases[prop]) {
-          if (target[candidate]) {
-            return target[candidate];
-          }
-        }
-      }
-
-      // Check if prop is an alias
-      for (const [canonical, aliases] of Object.entries(modelAliases)) {
-        if (aliases.includes(prop)) {
-          for (const candidate of aliases) {
-            if (target[candidate]) {
-              return target[candidate];
-            }
-          }
-        }
-      }
-    }
-
-    return Reflect.get(target, prop, receiver);
-  },
-});
-
-const missingModels = Object.entries(modelAliases)
-  .filter(([, candidates]) => !candidates.some((candidate) => prismaClient[candidate]))
-  .map(([canonical]) => canonical);
+const missingModels = expectedModels.filter((model) => !prisma[model]);
 
 if (missingModels.length > 0) {
-  console.warn(
-    `[Prisma] Missing delegates for models: ${missingModels.join(", ")}. ` +
-      "Run 'npx prisma generate' to sync Prisma Client with schema."
+  logger.warn(
+    "PRISMA",
+    `Missing delegates for models: ${missingModels.join(", ")}. Run 'npx prisma generate' to sync Prisma Client with schema.`,
   );
 }
 

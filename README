@@ -122,7 +122,26 @@ Crear archivo `.env` dentro de `backend`.
 DATABASE_URL="mysql://root:root@localhost:3306/custodia_db"
 JWT_SECRET=super-secret-key
 JWT_EXPIRES_IN=8h
+CORS_ORIGIN=http://localhost:5173
 ```
+
+> `CORS_ORIGIN` accepts a comma-separated list of allowed origins (e.g.
+> `http://localhost:5173,https://app.midominio.com`). If omitted, it defaults
+> to `http://localhost:5173` (the local Vite dev server) — it never falls back
+> to `*`.
+
+> `TRUST_PROXY_HOPS`: only set this if the app runs behind a reverse proxy
+> (nginx, load balancer, etc.). It must match the number of proxy hops in
+> front of the app, so `express-rate-limit` reads the real client IP from
+> `X-Forwarded-For` instead of the proxy's IP. Leave it unset in a direct
+> deployment (no proxy) — trusting a proxy that doesn't exist lets clients
+> spoof their own IP and bypass the `/login` rate limiter.
+
+> `SWAGGER_USER` / `SWAGGER_PASSWORD`: protect `/api/docs` with HTTP Basic
+> Auth. When both are set, the browser is prompted for these credentials
+> before Swagger UI loads. When either is unset, `/api/docs` stays open and a
+> warning is logged once at server startup — set both in any environment
+> where the API docs shouldn't be publicly reachable.
 
 ---
 
