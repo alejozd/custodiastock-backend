@@ -4,4 +4,4 @@ dist
 build
 .vscode
 /src/generated/prisma
-.codegraph/
+.codegraph/.custodiastock/
